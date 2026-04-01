@@ -33,7 +33,17 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('Erro:', err);
-      if (err.code === 'auth/invalid-credential') {
+      if (resetMode) {
+        if (err.code === 'auth/user-not-found') {
+          setError('Nenhuma conta encontrada com este email.');
+        } else if (err.code === 'auth/invalid-email') {
+          setError('Email inválido.');
+        } else if (err.code === 'auth/too-many-requests') {
+          setError('Muitas tentativas. Tente novamente mais tarde.');
+        } else {
+          setError(`Erro ao enviar email de recuperação. (${err.code || err.message})`);
+        }
+      } else if (err.code === 'auth/invalid-credential') {
         setError('Email ou senha incorretos.');
       } else if (err.code === 'auth/user-not-found') {
         setError('Usuário não encontrado.');
