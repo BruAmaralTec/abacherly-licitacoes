@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, 
-  Search, 
-  FileText, 
-  Calendar, 
+import {
+  ArrowLeft,
+  Search,
+  FileText,
+  Calendar,
   Building2,
   DollarSign,
   Clock,
@@ -14,19 +14,24 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
+import { criarLicitacao } from '@/lib/services/licitacoes';
+import { criarEvento } from '@/lib/services/eventos';
+import { isConlicitacaoConfigurado, buscarEdital, buscarEditalPorUrl } from '@/lib/services/conlicitacao';
 
 export default function NovaLicitacaoPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
-  
+  const { user, userProfile, loading } = useAuth();
+
   const [numeroEdital, setNumeroEdital] = useState('');
   const [buscando, setBuscando] = useState(false);
   const [dadosLicitacao, setDadosLicitacao] = useState<any>(null);
   const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
   const [etapas, setEtapas] = useState({
     coleta: 'pendente',
     analise: 'pendente',
@@ -50,49 +55,108 @@ export default function NovaLicitacaoPage() {
     setBuscando(true);
     setDadosLicitacao(null);
 
-    // Simulação de busca (será substituído pela integração real)
-    setEtapas({ coleta: 'processando', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setEtapas({ coleta: 'concluido', analise: 'processando', certidoes: 'pendente', agenda: 'pendente' });
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'processando', agenda: 'pendente' });
-    
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'processando' });
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'concluido' });
+    try {
+      if (isConlicitacaoConfigurado()) {
+        // Integração real com Conlicitação
+        setEtapas({ coleta: 'processando', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
 
-    // Dados simulados
-    setDadosLicitacao({
-      numero: numeroEdital,
-      objeto: 'Material de higiene e limpeza para unidades de saúde municipais',
-      orgao: 'Prefeitura Municipal de São Jerônimo',
-      modalidade: 'Pregão Eletrônico',
-      valor: 109628.40,
-      dataCertame: '2026-03-20',
-      horaCertame: '10:00',
-      prazoEntrega: '30 dias',
-      localEntrega: 'Almoxarifado Central',
-      resumo: 'Licitação para aquisição de materiais de higiene incluindo detergentes, desinfetantes, papel higiênico e outros itens para abastecimento das unidades de saúde do município.',
-      certidoesStatus: {
-        cnd_federal: 'valida',
-        fgts: 'valida',
-        cndt: 'vencendo',
-        estadual: 'valida',
-        municipal: 'pendente'
+        const isUrl = numeroEdital.startsWith('http');
+        const dados = isUrl
+          ? await buscarEditalPorUrl(numeroEdital)
+          : await buscarEdital(numeroEdital);
+
+        setEtapas({ coleta: 'concluido', analise: 'processando', certidoes: 'pendente', agenda: 'pendente' });
+
+        // Análise (resumo IA será adicionado futuramente)
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'processando', agenda: 'pendente' });
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'processando' });
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'concluido' });
+
+        setDadosLicitacao({
+          numero: dados.numero,
+          objeto: dados.objeto,
+          orgao: dados.orgao,
+          modalidade: dados.modalidade,
+          valor: dados.valorEstimado,
+          dataCertame: dados.dataCertame,
+          horaCertame: dados.horaCertame,
+          prazoEntrega: dados.prazoEntrega,
+          localEntrega: dados.localEntrega,
+          urlConlicitacao: isUrl ? numeroEdital : undefined,
+          resumo: `Licitação ${dados.modalidade} - ${dados.orgao}. Objeto: ${dados.objeto}.`,
+          certidoesStatus: {
+            cnd_federal: 'pendente',
+            fgts: 'pendente',
+            cndt: 'pendente',
+            estadual: 'pendente',
+            municipal: 'pendente'
+          }
+        });
+      } else {
+        // API não configurada - modo manual
+        setErro('API do Conlicitação não configurada. Preencha os dados manualmente ou configure o token nas variáveis de ambiente.');
       }
-    });
-
-    setBuscando(false);
+    } catch (error: any) {
+      setErro(error.message || 'Erro ao buscar dados da licitação');
+      setEtapas({ coleta: 'pendente', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
+    } finally {
+      setBuscando(false);
+    }
   };
 
-  const handleSalvar = () => {
-    // Implementar salvamento no Firestore
-    alert('Licitação salva com sucesso!');
-    router.push('/licitacoes');
+  const handleSalvar = async () => {
+    if (!dadosLicitacao || !userProfile?.clientId || !user) return;
+
+    setSalvando(true);
+    try {
+      const licitacaoId = await criarLicitacao({
+        numero: dadosLicitacao.numero,
+        objeto: dadosLicitacao.objeto,
+        orgao: dadosLicitacao.orgao,
+        modalidade: dadosLicitacao.modalidade,
+        valorEstimado: dadosLicitacao.valor,
+        dataCertame: Timestamp.fromDate(new Date(dadosLicitacao.dataCertame)),
+        horaCertame: dadosLicitacao.horaCertame,
+        prazoEntrega: dadosLicitacao.prazoEntrega,
+        localEntrega: dadosLicitacao.localEntrega || '',
+        status: 'em_analise',
+        resumoIA: dadosLicitacao.resumo || '',
+        urlConlicitacao: dadosLicitacao.urlConlicitacao || '',
+        clientId: userProfile.clientId,
+        criadoPor: user.uid,
+      });
+
+      // Criar evento de sessão pública automaticamente
+      if (dadosLicitacao.dataCertame && dadosLicitacao.horaCertame) {
+        const [hora, minuto] = dadosLicitacao.horaCertame.split(':');
+        const dataCertame = new Date(dadosLicitacao.dataCertame);
+        dataCertame.setHours(parseInt(hora), parseInt(minuto));
+
+        await criarEvento({
+          titulo: `Sessão Pública - ${dadosLicitacao.numero}`,
+          descricao: `${dadosLicitacao.modalidade} - ${dadosLicitacao.orgao}`,
+          tipo: 'sessao_publica',
+          dataHora: Timestamp.fromDate(dataCertame),
+          licitacaoId,
+          licitacaoNumero: dadosLicitacao.numero,
+          urgente: false,
+          concluido: false,
+          clientId: userProfile.clientId,
+          criadoPor: user.uid,
+        });
+      }
+
+      router.push('/licitacoes');
+    } catch (error: any) {
+      setErro(error.message || 'Erro ao salvar licitação');
+    } finally {
+      setSalvando(false);
+    }
   };
 
   if (loading || !user) {
@@ -117,13 +181,13 @@ export default function NovaLicitacaoPage() {
   return (
     <div className="min-h-screen w-full bg-[#f8fafc]">
       <Sidebar />
-      
+
       <div className="w-full lg:pl-64 min-h-screen flex flex-col">
         <main className="flex-1 w-full p-4 sm:p-6 lg:p-8">
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
-            <Link 
-              href="/licitacoes" 
+            <Link
+              href="/licitacoes"
               className="p-2 hover:bg-white rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5 text-[#1a2b45]" />
@@ -139,7 +203,7 @@ export default function NovaLicitacaoPage() {
           {/* Busca */}
           <div className="card p-4 sm:p-6 mb-6">
             <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Buscar Licitação</h2>
-            
+
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-[#1a2b45] mb-2">
@@ -152,6 +216,7 @@ export default function NovaLicitacaoPage() {
                   placeholder="Ex: 65/2025 ou cole o link completo"
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-[#4674e8] focus:ring-2 focus:ring-[#4674e8]/20 transition-all"
                   disabled={buscando}
+                  onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
                 />
               </div>
               <div className="sm:self-end">
@@ -175,6 +240,13 @@ export default function NovaLicitacaoPage() {
               </div>
             </div>
 
+            {!isConlicitacaoConfigurado() && (
+              <div className="mt-4 flex items-center gap-2 text-amber-600 text-sm bg-amber-50 p-3 rounded-lg">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                API do Conlicitação não configurada. Configure o token para busca automática.
+              </div>
+            )}
+
             {erro && (
               <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
                 <AlertCircle className="w-4 h-4" />
@@ -187,7 +259,7 @@ export default function NovaLicitacaoPage() {
           {(buscando || dadosLicitacao) && (
             <div className="card p-4 sm:p-6 mb-6">
               <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Processamento</h2>
-              
+
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={`p-4 rounded-lg border-2 transition-all ${etapas.coleta === 'concluido' ? 'border-green-200 bg-green-50' : etapas.coleta === 'processando' ? 'border-[#4674e8] bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
                   <div className="flex items-center gap-2 mb-2">
@@ -233,7 +305,7 @@ export default function NovaLicitacaoPage() {
                   <FileText className="w-5 h-5 text-[#4674e8]" />
                   Dados da Licitação
                 </h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm text-[#1a2b45]/60 mb-1">Número</label>
@@ -275,48 +347,52 @@ export default function NovaLicitacaoPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <label className="block text-sm text-[#1a2b45]/60 mb-2">Resumo (gerado por IA)</label>
-                  <p className="text-sm text-[#1a2b45] bg-gray-50 p-4 rounded-lg">
-                    {dadosLicitacao.resumo}
-                  </p>
-                </div>
+                {dadosLicitacao.resumo && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <label className="block text-sm text-[#1a2b45]/60 mb-2">Resumo (gerado por IA)</label>
+                    <p className="text-sm text-[#1a2b45] bg-gray-50 p-4 rounded-lg">
+                      {dadosLicitacao.resumo}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Status das Certidões */}
-              <div className="card p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Status das Certidões</h2>
-                
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {Object.entries(dadosLicitacao.certidoesStatus).map(([key, status]) => (
-                    <div 
-                      key={key}
-                      className={`p-3 rounded-lg text-center ${
-                        status === 'valida' ? 'bg-green-50' :
-                        status === 'vencendo' ? 'bg-amber-50' :
-                        'bg-red-50'
-                      }`}
-                    >
-                      <p className="text-xs font-bold text-[#1a2b45] uppercase mb-1">
-                        {key.replace('_', ' ')}
-                      </p>
-                      <span className={`text-xs font-bold ${
-                        status === 'valida' ? 'text-green-600' :
-                        status === 'vencendo' ? 'text-amber-600' :
-                        'text-red-600'
-                      }`}>
-                        {status === 'valida' ? '✓ Válida' :
-                         status === 'vencendo' ? '⚠ Vencendo' :
-                         '✗ Pendente'}
-                      </span>
-                    </div>
-                  ))}
+              {dadosLicitacao.certidoesStatus && (
+                <div className="card p-4 sm:p-6">
+                  <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Status das Certidões</h2>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {Object.entries(dadosLicitacao.certidoesStatus).map(([key, status]) => (
+                      <div
+                        key={key}
+                        className={`p-3 rounded-lg text-center ${
+                          status === 'valida' ? 'bg-green-50' :
+                          status === 'vencendo' ? 'bg-amber-50' :
+                          'bg-red-50'
+                        }`}
+                      >
+                        <p className="text-xs font-bold text-[#1a2b45] uppercase mb-1">
+                          {key.replace(/_/g, ' ')}
+                        </p>
+                        <span className={`text-xs font-bold ${
+                          status === 'valida' ? 'text-green-600' :
+                          status === 'vencendo' ? 'text-amber-600' :
+                          'text-red-600'
+                        }`}>
+                          {status === 'valida' ? 'Válida' :
+                           status === 'vencendo' ? 'Vencendo' :
+                           'Pendente'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Ações */}
               <div className="flex flex-col sm:flex-row gap-4 justify-end">
-                <Link 
+                <Link
                   href="/licitacoes"
                   className="btn-secondary text-center"
                 >
@@ -324,10 +400,20 @@ export default function NovaLicitacaoPage() {
                 </Link>
                 <button
                   onClick={handleSalvar}
+                  disabled={salvando}
                   className="btn-primary flex items-center justify-center gap-2"
                 >
-                  <CheckCircle className="w-5 h-5" />
-                  Salvar Licitação
+                  {salvando ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      Salvar Licitação
+                    </>
+                  )}
                 </button>
               </div>
             </div>
