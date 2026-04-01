@@ -21,7 +21,7 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { criarLicitacao } from '@/lib/services/licitacoes';
 import { criarEvento } from '@/lib/services/eventos';
-import { isConlicitacaoConfigurado, buscarEdital, buscarEditalPorUrl } from '@/lib/services/conlicitacao';
+import { buscarEdital, buscarEditalPorUrl, isConlicitacaoConfigurado, DadosEdital } from '@/lib/services/conlicitacao';
 
 export default function NovaLicitacaoPage() {
   const router = useRouter();
@@ -29,6 +29,7 @@ export default function NovaLicitacaoPage() {
 
   const [numeroEdital, setNumeroEdital] = useState('');
   const [buscando, setBuscando] = useState(false);
+  const [resultados, setResultados] = useState<DadosEdital[]>([]);
   const [dadosLicitacao, setDadosLicitacao] = useState<any>(null);
   const [erro, setErro] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -47,59 +48,39 @@ export default function NovaLicitacaoPage() {
 
   const handleBuscar = async () => {
     if (!numeroEdital.trim()) {
-      setErro('Digite o número do edital');
+      setErro('Digite o número do edital ou termo de busca');
       return;
     }
 
     setErro('');
     setBuscando(true);
     setDadosLicitacao(null);
+    setResultados([]);
 
     try {
-      if (isConlicitacaoConfigurado()) {
-        // Integração real com Conlicitação
-        setEtapas({ coleta: 'processando', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
+      setEtapas({ coleta: 'processando', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
 
-        const isUrl = numeroEdital.startsWith('http');
-        const dados = isUrl
-          ? await buscarEditalPorUrl(numeroEdital)
-          : await buscarEdital(numeroEdital);
+      const isUrl = numeroEdital.startsWith('http');
+      const dados = isUrl
+        ? await buscarEditalPorUrl(numeroEdital)
+        : await buscarEdital(numeroEdital);
 
-        setEtapas({ coleta: 'concluido', analise: 'processando', certidoes: 'pendente', agenda: 'pendente' });
+      setEtapas({ coleta: 'concluido', analise: 'processando', certidoes: 'pendente', agenda: 'pendente' });
 
-        // Análise (resumo IA será adicionado futuramente)
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'processando', agenda: 'pendente' });
+      if (dados.length === 0) {
+        setErro('Nenhuma licitação encontrada. Tente outros termos de busca.');
+        setEtapas({ coleta: 'concluido', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
+        setBuscando(false);
+        return;
+      }
 
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'processando' });
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'concluido' });
-
-        setDadosLicitacao({
-          numero: dados.numero,
-          objeto: dados.objeto,
-          orgao: dados.orgao,
-          modalidade: dados.modalidade,
-          valor: dados.valorEstimado,
-          dataCertame: dados.dataCertame,
-          horaCertame: dados.horaCertame,
-          prazoEntrega: dados.prazoEntrega,
-          localEntrega: dados.localEntrega,
-          urlConlicitacao: isUrl ? numeroEdital : undefined,
-          resumo: `Licitação ${dados.modalidade} - ${dados.orgao}. Objeto: ${dados.objeto}.`,
-          certidoesStatus: {
-            cnd_federal: 'pendente',
-            fgts: 'pendente',
-            cndt: 'pendente',
-            estadual: 'pendente',
-            municipal: 'pendente'
-          }
-        });
+      if (dados.length === 1) {
+        // Resultado único — seleciona automaticamente
+        selecionarResultado(dados[0]);
       } else {
-        // API não configurada - modo manual
-        setErro('API do Conlicitação não configurada. Preencha os dados manualmente ou configure o token nas variáveis de ambiente.');
+        // Múltiplos resultados — mostrar lista para o usuário escolher
+        setResultados(dados);
+        setEtapas({ coleta: 'concluido', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
       }
     } catch (error: any) {
       setErro(error.message || 'Erro ao buscar dados da licitação');
@@ -107,6 +88,34 @@ export default function NovaLicitacaoPage() {
     } finally {
       setBuscando(false);
     }
+  };
+
+  const selecionarResultado = (dados: DadosEdital) => {
+    setResultados([]);
+    setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'concluido' });
+
+    setDadosLicitacao({
+      numero: dados.numero,
+      objeto: dados.objeto,
+      orgao: dados.orgao,
+      modalidade: dados.modalidade,
+      valor: dados.valorEstimado,
+      dataCertame: dados.dataCertame,
+      horaCertame: dados.horaCertame,
+      prazoEntrega: dados.prazoEntrega,
+      localEntrega: dados.localEntrega,
+      urlConlicitacao: dados.linkSistemaOrigem || '',
+      numeroControlePNCP: dados.numeroControlePNCP || '',
+      fonte: dados.fonte,
+      resumo: `${dados.modalidade} - ${dados.orgao}. ${dados.objeto}`,
+      certidoesStatus: {
+        cnd_federal: 'pendente',
+        fgts: 'pendente',
+        cndt: 'pendente',
+        estadual: 'pendente',
+        municipal: 'pendente'
+      }
+    });
   };
 
   const handleSalvar = async () => {
@@ -240,12 +249,12 @@ export default function NovaLicitacaoPage() {
               </div>
             </div>
 
-            {!isConlicitacaoConfigurado() && (
-              <div className="mt-4 flex items-center gap-2 text-amber-600 text-sm bg-amber-50 p-3 rounded-lg">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                API do Conlicitação não configurada. Configure o token para busca automática.
-              </div>
-            )}
+            <div className="mt-4 flex items-center gap-2 text-sm bg-blue-50 text-blue-700 p-3 rounded-lg">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {isConlicitacaoConfigurado()
+                ? 'Buscando via Conlicitação + PNCP (gov.br)'
+                : 'Buscando via PNCP - Portal Nacional de Contratações Públicas (gov.br)'}
+            </div>
 
             {erro && (
               <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
@@ -292,6 +301,51 @@ export default function NovaLicitacaoPage() {
                   </div>
                   <p className="text-xs text-[#1a2b45]/60">Eventos criados</p>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Resultados da Busca */}
+          {resultados.length > 1 && (
+            <div className="card p-4 sm:p-6 mb-6">
+              <h2 className="text-lg font-bold text-[#2c4a70] mb-2">
+                Resultados Encontrados ({resultados.length})
+              </h2>
+              <p className="text-sm text-[#1a2b45]/60 mb-4">
+                Selecione a licitação desejada:
+              </p>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {resultados.map((r, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selecionarResultado(r)}
+                    className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-[#4674e8] hover:bg-blue-50/50 transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-[#2c4a70]">#{r.numero}</span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-[#1a2b45]/60">
+                            {r.modalidade}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
+                            {r.fonte === 'pncp' ? 'PNCP' : 'Conlicitação'}
+                          </span>
+                        </div>
+                        <p className="text-sm text-[#1a2b45] line-clamp-2">{r.objeto}</p>
+                        <p className="text-xs text-[#1a2b45]/60 mt-1">{r.orgao}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-bold text-[#2c4a70]">
+                          {r.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </p>
+                        <p className="text-xs text-[#1a2b45]/60">
+                          {new Date(r.dataCertame).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           )}
