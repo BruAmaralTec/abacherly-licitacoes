@@ -19,6 +19,39 @@ export type Modalidade =
   | 'Dispensa'
   | 'Inexigibilidade';
 
+export interface AnaliseEdital {
+  processo?: string;
+  fusoHorario?: string;
+  baseLegal?: string;
+  enquadramentoEmpresa?: string;
+  valorIntervaloLance?: string;
+  formalizacao?: string;
+  portal?: string;
+  criterioJulgamento?: string;
+  modoDisputa?: string;
+  dataLimiteCadastramento?: string;
+  garantiaContrato?: string;
+  validadeProposta?: string;
+  vigenciaTotalContrato?: string;
+  pagamento?: string;
+  recurso?: string;
+  propostaAdequada?: string;
+  assinaturaContrato?: string;
+  documentacao?: string;
+  garantiaContratoDetalhe?: string;
+  proposta?: string;
+  propostaRevisada?: string;
+  habilitacaoJuridica?: string;
+  regularidadeFiscal?: string;
+  qualificacaoEconomica?: string;
+  qualificacaoTecnica?: string;
+  declaracoes?: string;
+  julgamentoProposta?: string;
+  declaradoVencedor?: string;
+  faturamentoEntrega?: string;
+  observacoes?: string;
+}
+
 export interface Licitacao {
   id?: string;
   numero: string;
@@ -34,6 +67,13 @@ export interface Licitacao {
   resumoIA: string;
   urlConlicitacao?: string;
   codigoPNCP?: string;
+  numeroControlePNCP?: string;
+  linkSistemaOrigem?: string;
+  processo?: string;
+  baseLegal?: string;
+  modoDisputa?: string;
+  srp?: boolean;
+  analise?: AnaliseEdital;
   clientId: string;
   criadoPor: string;
   criadoEm: Timestamp;

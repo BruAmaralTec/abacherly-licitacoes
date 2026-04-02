@@ -8,7 +8,6 @@ import {
   Search,
   Filter,
   Eye,
-  Edit,
   MoreVertical,
   Calendar,
   Building2,
@@ -178,11 +177,15 @@ export default function LicitacoesPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        <Link
+                          href={`/licitacoes/${lic.id}/analise`}
+                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Análise do Edital"
+                        >
+                          <FileText className="w-4 h-4 text-[#4674e8]" />
+                        </Link>
                         <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                          <Eye className="w-4 h-4 text-[#4674e8]" />
-                        </button>
-                        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                          <Edit className="w-4 h-4 text-[#1a2b45]/60" />
+                          <Eye className="w-4 h-4 text-[#1a2b45]/60" />
                         </button>
                       </div>
                     </div>
@@ -235,11 +238,15 @@ export default function LicitacoesPage() {
                           </td>
                           <td className="py-4 px-4">
                             <div className="flex items-center justify-center gap-1">
+                              <Link
+                                href={`/licitacoes/${lic.id}/analise`}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Análise do Edital"
+                              >
+                                <FileText className="w-4 h-4 text-[#4674e8]" />
+                              </Link>
                               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Visualizar">
-                                <Eye className="w-4 h-4 text-[#4674e8]" />
-                              </button>
-                              <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Editar">
-                                <Edit className="w-4 h-4 text-[#1a2b45]/60" />
+                                <Eye className="w-4 h-4 text-[#1a2b45]/60" />
                               </button>
                               <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Mais opções">
                                 <MoreVertical className="w-4 h-4 text-[#1a2b45]/60" />

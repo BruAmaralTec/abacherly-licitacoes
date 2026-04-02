@@ -136,6 +136,9 @@ export default function NovaLicitacaoPage() {
         status: 'em_analise',
         resumoIA: dadosLicitacao.resumo || '',
         urlConlicitacao: dadosLicitacao.urlConlicitacao || '',
+        numeroControlePNCP: dadosLicitacao.numeroControlePNCP || '',
+        linkSistemaOrigem: dadosLicitacao.urlConlicitacao || '',
+        modoDisputa: dadosLicitacao.modoDisputa || '',
         clientId: userProfile.clientId,
         criadoPor: user.uid,
       });
@@ -160,7 +163,7 @@ export default function NovaLicitacaoPage() {
         });
       }
 
-      router.push('/licitacoes');
+      router.push(`/licitacoes/${licitacaoId}/analise`);
     } catch (error: any) {
       setErro(error.message || 'Erro ao salvar licitação');
     } finally {
