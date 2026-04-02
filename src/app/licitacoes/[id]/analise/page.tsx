@@ -8,13 +8,15 @@ import {
   Save,
   Loader2,
   FileText,
-  Download
+  Download,
+  FileDown
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { buscarLicitacao, atualizarLicitacao } from '@/lib/services/licitacoes';
+import { exportarAnaliseWord } from '@/lib/services/exportarWord';
 import { Licitacao, AnaliseEdital } from '@/lib/types';
 
 export default function AnalisePage() {
@@ -29,6 +31,7 @@ export default function AnalisePage() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [exportando, setExportando] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -71,6 +74,18 @@ export default function AnalisePage() {
 
   const handleImprimir = () => {
     window.print();
+  };
+
+  const handleExportarWord = async () => {
+    if (!licitacao) return;
+    setExportando(true);
+    try {
+      await exportarAnaliseWord(licitacao, analise);
+    } catch (error) {
+      console.error('Erro ao exportar Word:', error);
+    } finally {
+      setExportando(false);
+    }
   };
 
   const updateAnalise = (campo: keyof AnaliseEdital, valor: string) => {
@@ -128,11 +143,19 @@ export default function AnalisePage() {
                 Salvar
               </button>
               <button
+                onClick={handleExportarWord}
+                disabled={exportando}
+                className="btn-secondary flex items-center gap-2 text-sm py-2 px-4"
+              >
+                {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                Word
+              </button>
+              <button
                 onClick={handleImprimir}
                 className="btn-primary flex items-center gap-2 text-sm py-2 px-4"
               >
                 <Printer className="w-4 h-4" />
-                Exportar PDF
+                PDF
               </button>
             </div>
           </div>
