@@ -64,20 +64,31 @@ export default function AdminClientesPage() {
   }, [loading, isAdmin]);
 
   const handleSalvar = async () => {
-    if (!clienteSelecionado?.id || !user) return;
+    if (!clienteSelecionado || !user) return;
+    if (!clienteSelecionado.razaoSocial?.trim()) {
+      alert('Razão Social é obrigatória');
+      return;
+    }
+
     setSalvando(true);
     setSalvo(false);
 
     try {
+      const clientId = clienteSelecionado.id || `cliente_${Date.now()}`;
       const { id, ...data } = clienteSelecionado;
-      await salvarCliente(id, { ...data, atualizadoPor: user.uid });
+      await salvarCliente(clientId, { ...data, atualizadoPor: user.uid });
       setSalvo(true);
       setTimeout(() => setSalvo(false), 3000);
 
+      const savedCliente = { ...clienteSelecionado, id: clientId };
+      setClienteSelecionado(savedCliente);
+
       // Atualizar lista
-      setClientes((prev) =>
-        prev.map((c) => (c.id === id ? clienteSelecionado : c))
-      );
+      if (id) {
+        setClientes((prev) => prev.map((c) => (c.id === id ? savedCliente : c)));
+      } else {
+        setClientes((prev) => [...prev, savedCliente]);
+      }
     } catch (error) {
       console.error('Erro ao salvar:', error);
     } finally {
@@ -412,13 +423,29 @@ export default function AdminClientesPage() {
           ) : (
             /* ======= Lista de Clientes ======= */
             <>
-              <div className="mb-6">
-                <h1 className="text-2xl lg:text-3xl font-bold text-[#2c4a70]">
-                  Informações por Cliente
-                </h1>
-                <p className="text-sm lg:text-base text-[#1a2b45]/60 mt-1">
-                  Configure regras e dados cadastrais de cada cliente
-                </p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div>
+                  <h1 className="text-2xl lg:text-3xl font-bold text-[#2c4a70]">
+                    Informações por Cliente
+                  </h1>
+                  <p className="text-sm lg:text-base text-[#1a2b45]/60 mt-1">
+                    Configure regras e dados cadastrais de cada cliente
+                  </p>
+                </div>
+                <button
+                  onClick={() => setClienteSelecionado({
+                    cnpj: '',
+                    razaoSocial: '',
+                    modalidadesInteresse: [],
+                    ufsInteresse: [],
+                    documentosObrigatorios: [],
+                    atualizadoPor: user?.uid || '',
+                  } as any)}
+                  className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+                >
+                  <Plus className="w-5 h-5" />
+                  Novo Cliente
+                </button>
               </div>
 
               {carregando ? (

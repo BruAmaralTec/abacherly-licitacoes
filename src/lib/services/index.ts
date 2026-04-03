@@ -7,3 +7,4 @@ export * from './solicitacoes';
 export * from './documentos';
 export * from './clientes';
 export * from './relatorios';
+export * from './usuarios';
