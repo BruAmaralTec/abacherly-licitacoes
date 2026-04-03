@@ -30,6 +30,7 @@ export interface DadosEdital {
   urlEdital?: string;
   linkSistemaOrigem?: string;
   numeroControlePNCP?: string;
+  codigoUnidade?: string;
   itens?: ItemEdital[];
   fonte: 'conlicitacao' | 'pncp';
 }
@@ -116,6 +117,7 @@ function pncpParaDadosEdital(compra: PNCPCompra): DadosEdital {
     localEntrega: `${compra.unidadeOrgao.municipioNome} - ${compra.unidadeOrgao.ufSigla}`,
     linkSistemaOrigem: compra.linkSistemaOrigem || undefined,
     numeroControlePNCP: compra.numeroControlePNCP,
+    codigoUnidade: compra.unidadeOrgao.codigoUnidade,
     fonte: 'pncp',
   };
 }
@@ -128,6 +130,7 @@ export async function buscarPNCP(params: {
   dataInicial: string; // formato YYYYMMDD
   dataFinal: string;   // formato YYYYMMDD
   codigoModalidadeContratacao?: number;
+  codigoUnidadeAdministrativa?: string;
   uf?: string;
   pagina?: number;
   tamanhoPagina?: number;
@@ -138,6 +141,7 @@ export async function buscarPNCP(params: {
   searchParams.set('dataInicial', params.dataInicial);
   searchParams.set('dataFinal', params.dataFinal);
   searchParams.set('codigoModalidadeContratacao', String(params.codigoModalidadeContratacao || 6));
+  if (params.codigoUnidadeAdministrativa) searchParams.set('codigoUnidadeAdministrativa', params.codigoUnidadeAdministrativa);
   if (params.uf) searchParams.set('uf', params.uf);
   searchParams.set('pagina', String(params.pagina || 1));
   searchParams.set('tamanhoPagina', String(params.tamanhoPagina || 10));
@@ -216,11 +220,13 @@ async function fetchConlicitacao<T>(endpoint: string, params?: Record<string, st
  * 1. Conlicitação (se configurado)
  * 2. PNCP (fallback público)
  */
-export async function buscarEdital(termo: string): Promise<DadosEdital[]> {
+export async function buscarEdital(termo: string, uasg?: string): Promise<DadosEdital[]> {
   // Se o Conlicitação está configurado, usar como fonte primária
   if (isConlicitacaoConfigurado()) {
     try {
-      const dados = await fetchConlicitacao<DadosEdital>('/edital', { numero: termo });
+      const params: Record<string, string> = { numero: termo };
+      if (uasg) params.uasg = uasg;
+      const dados = await fetchConlicitacao<DadosEdital>('/edital', params);
       return [{ ...dados, fonte: 'conlicitacao' }];
     } catch {
       // Fallback para PNCP se Conlicitação falhar
@@ -237,10 +243,17 @@ export async function buscarEdital(termo: string): Promise<DadosEdital[]> {
 
   const resultado = await buscarPNCP({
     q: termo,
+    codigoUnidadeAdministrativa: uasg,
     dataInicial: formatarData(seisMesesAtras),
     dataFinal: formatarData(agora),
     tamanhoPagina: 10,
   });
+
+  // Filtrar por UASG (código da unidade) se informado
+  if (uasg) {
+    const filtrados = resultado.dados.filter((d) => d.codigoUnidade === uasg);
+    return filtrados.length > 0 ? filtrados : resultado.dados;
+  }
 
   return resultado.dados;
 }

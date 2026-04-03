@@ -32,7 +32,7 @@ const statusConfig: Record<string, { label: string; class: string; bg: string }>
 
 export default function LicitacoesPage() {
   const router = useRouter();
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, isCliente } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [licitacoes, setLicitacoes] = useState<Licitacao[]>([]);
@@ -92,13 +92,15 @@ export default function LicitacoesPage() {
                 Gerencie todas as licitações do sistema
               </p>
             </div>
-            <Link
-              href="/licitacoes/nova"
-              className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
-            >
-              <Plus className="w-5 h-5" />
-              Nova Licitação
-            </Link>
+            {!isCliente && (
+              <Link
+                href="/licitacoes/nova"
+                className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+              >
+                <Plus className="w-5 h-5" />
+                Nova Licitação
+              </Link>
+            )}
           </div>
 
           {/* Filters */}

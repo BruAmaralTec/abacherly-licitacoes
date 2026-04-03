@@ -4,19 +4,25 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Plus, 
-  FileText, 
-  Calendar, 
-  FileCheck, 
+import {
+  LayoutDashboard,
+  Plus,
+  FileText,
+  Calendar,
+  FileCheck,
   DollarSign,
   Users,
   Settings,
   LogOut,
   ChevronRight,
   Menu,
-  X
+  X,
+  ClipboardList,
+  Upload,
+  LayoutList,
+  FileCheck2,
+  Building2,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -24,55 +30,93 @@ interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles: ('super_admin' | 'admin' | 'operator')[];
+  roles: ('super_admin' | 'admin' | 'operator' | 'cliente')[];
+  dividerBefore?: boolean;
 }
 
 const navItems: NavItem[] = [
-  { 
-    name: 'Dashboard', 
-    href: '/dashboard', 
+  {
+    name: 'Dashboard',
+    href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['super_admin', 'admin', 'operator']
+    roles: ['super_admin', 'admin', 'operator', 'cliente']
   },
-  { 
-    name: 'Nova Licitação', 
-    href: '/licitacoes/nova', 
-    icon: Plus,
-    roles: ['super_admin', 'admin', 'operator']
+  {
+    name: 'Solicitar Análise',
+    href: '/solicitacoes',
+    icon: ClipboardList,
+    roles: ['super_admin', 'admin', 'operator', 'cliente']
   },
-  { 
-    name: 'Licitações', 
-    href: '/licitacoes', 
+  {
+    name: 'Enviar Documentos',
+    href: '/documentos',
+    icon: Upload,
+    roles: ['super_admin', 'admin', 'operator', 'cliente']
+  },
+  {
+    name: 'Relatório',
+    href: '/relatorios',
+    icon: BarChart3,
+    roles: ['super_admin', 'admin', 'operator', 'cliente']
+  },
+  {
+    name: 'Licitações',
+    href: '/licitacoes',
     icon: FileText,
-    roles: ['super_admin', 'admin', 'operator']
+    roles: ['super_admin', 'admin', 'operator', 'cliente']
   },
-  { 
-    name: 'Agenda', 
-    href: '/agenda', 
+  {
+    name: 'Nova Licitação',
+    href: '/licitacoes/nova',
+    icon: Plus,
+    roles: ['super_admin', 'admin']
+  },
+  {
+    name: 'Agenda',
+    href: '/agenda',
     icon: Calendar,
     roles: ['super_admin', 'admin', 'operator']
   },
-  { 
-    name: 'Certidões', 
-    href: '/certidoes', 
+  {
+    name: 'Certidões',
+    href: '/certidoes',
     icon: FileCheck,
     roles: ['super_admin', 'admin', 'operator']
   },
-  { 
-    name: 'Pagamentos', 
-    href: '/pagamentos', 
+  {
+    name: 'Pagamentos',
+    href: '/pagamentos',
     icon: DollarSign,
     roles: ['super_admin', 'admin', 'operator']
   },
-  { 
-    name: 'Usuários', 
-    href: '/usuarios', 
+  {
+    name: 'Painel Solicitações',
+    href: '/admin/solicitacoes',
+    icon: LayoutList,
+    roles: ['super_admin', 'admin'],
+    dividerBefore: true
+  },
+  {
+    name: 'Validar Documentos',
+    href: '/admin/documentos',
+    icon: FileCheck2,
+    roles: ['super_admin', 'admin']
+  },
+  {
+    name: 'Info Clientes',
+    href: '/admin/clientes',
+    icon: Building2,
+    roles: ['super_admin', 'admin']
+  },
+  {
+    name: 'Usuários',
+    href: '/usuarios',
     icon: Users,
     roles: ['super_admin', 'admin']
   },
-  { 
-    name: 'Configurações', 
-    href: '/configuracoes', 
+  {
+    name: 'Configurações',
+    href: '/configuracoes',
     icon: Settings,
     roles: ['super_admin']
   },
@@ -132,6 +176,7 @@ export default function Sidebar() {
               {userProfile?.role === 'super_admin' && 'Super Admin'}
               {userProfile?.role === 'admin' && 'Administrador'}
               {userProfile?.role === 'operator' && 'Operador'}
+              {userProfile?.role === 'cliente' && 'Cliente'}
             </p>
           </div>
         </div>
@@ -142,24 +187,28 @@ export default function Sidebar() {
         {filteredNavItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           const Icon = item.icon;
-          
+
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setIsOpen(false)}
-              className={`flex items-center gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg transition-all duration-200 group ${
-                isActive 
-                  ? 'bg-[#4674e8] text-white' 
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <Icon className="w-5 h-5 flex-shrink-0" />
-              <span className="font-medium text-sm lg:text-base">{item.name}</span>
-              {isActive && (
-                <ChevronRight className="w-4 h-4 ml-auto flex-shrink-0" />
+            <div key={item.href}>
+              {item.dividerBefore && (
+                <div className="my-2 border-t border-white/10" />
               )}
-            </Link>
+              <Link
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                className={`flex items-center gap-3 px-3 lg:px-4 py-2.5 lg:py-3 rounded-lg transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-[#4674e8] text-white'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className="font-medium text-sm lg:text-base">{item.name}</span>
+                {isActive && (
+                  <ChevronRight className="w-4 h-4 ml-auto flex-shrink-0" />
+                )}
+              </Link>
+            </div>
           );
         })}
       </nav>

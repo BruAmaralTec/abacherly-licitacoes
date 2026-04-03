@@ -12,7 +12,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 // Tipos de perfil de usuário
-export type UserRole = 'super_admin' | 'admin' | 'operator';
+export type UserRole = 'super_admin' | 'admin' | 'operator' | 'cliente';
 
 export interface UserProfile {
   uid: string;
@@ -34,6 +34,7 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isOperator: boolean;
+  isCliente: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -111,6 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isSuperAdmin = userProfile?.role === 'super_admin';
   const isAdmin = userProfile?.role === 'admin' || isSuperAdmin;
   const isOperator = userProfile?.role === 'operator' || isAdmin;
+  const isCliente = userProfile?.role === 'cliente';
 
   return (
     <AuthContext.Provider value={{
@@ -123,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSuperAdmin,
       isAdmin,
       isOperator,
+      isCliente,
     }}>
       {children}
     </AuthContext.Provider>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Search,
@@ -21,13 +21,17 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { criarLicitacao } from '@/lib/services/licitacoes';
 import { criarEvento } from '@/lib/services/eventos';
+import { processarSolicitacao } from '@/lib/services/solicitacoes';
 import { buscarEdital, buscarEditalPorUrl, isConlicitacaoConfigurado, DadosEdital } from '@/lib/services/conlicitacao';
 
 export default function NovaLicitacaoPage() {
   const router = useRouter();
-  const { user, userProfile, loading } = useAuth();
+  const searchParams = useSearchParams();
+  const { user, userProfile, loading, isAdmin } = useAuth();
 
-  const [numeroEdital, setNumeroEdital] = useState('');
+  const solicitacaoId = searchParams.get('solicitacaoId') || '';
+  const [numeroEdital, setNumeroEdital] = useState(searchParams.get('numero') || '');
+  const [uasg, setUasg] = useState(searchParams.get('uasg') || '');
   const [buscando, setBuscando] = useState(false);
   const [resultados, setResultados] = useState<DadosEdital[]>([]);
   const [dadosLicitacao, setDadosLicitacao] = useState<any>(null);
@@ -44,7 +48,10 @@ export default function NovaLicitacaoPage() {
     if (!loading && !user) {
       router.push('/login');
     }
-  }, [user, loading, router]);
+    if (!loading && user && !isAdmin) {
+      router.push('/solicitacoes');
+    }
+  }, [user, loading, router, isAdmin]);
 
   const handleBuscar = async () => {
     if (!numeroEdital.trim()) {
@@ -63,7 +70,7 @@ export default function NovaLicitacaoPage() {
       const isUrl = numeroEdital.startsWith('http');
       const dados = isUrl
         ? await buscarEditalPorUrl(numeroEdital)
-        : await buscarEdital(numeroEdital);
+        : await buscarEdital(numeroEdital, uasg.trim() || undefined);
 
       setEtapas({ coleta: 'concluido', analise: 'processando', certidoes: 'pendente', agenda: 'pendente' });
 
@@ -163,6 +170,11 @@ export default function NovaLicitacaoPage() {
         });
       }
 
+      // Se veio de uma solicitação, marcar como processada
+      if (solicitacaoId && user) {
+        await processarSolicitacao(solicitacaoId, user.uid, licitacaoId);
+      }
+
       router.push(`/licitacoes/${licitacaoId}/analise`);
     } catch (error: any) {
       setErro(error.message || 'Erro ao salvar licitação');
@@ -226,6 +238,20 @@ export default function NovaLicitacaoPage() {
                   value={numeroEdital}
                   onChange={(e) => setNumeroEdital(e.target.value)}
                   placeholder="Ex: 65/2025 ou cole o link completo"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-[#4674e8] focus:ring-2 focus:ring-[#4674e8]/20 transition-all"
+                  disabled={buscando}
+                  onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
+                />
+              </div>
+              <div className="w-full sm:w-48">
+                <label className="block text-sm font-medium text-[#1a2b45] mb-2">
+                  UASG
+                </label>
+                <input
+                  type="text"
+                  value={uasg}
+                  onChange={(e) => setUasg(e.target.value)}
+                  placeholder="Ex: 160199"
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-[#4674e8] focus:ring-2 focus:ring-[#4674e8]/20 transition-all"
                   disabled={buscando}
                   onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
@@ -336,7 +362,10 @@ export default function NovaLicitacaoPage() {
                           </span>
                         </div>
                         <p className="text-sm text-[#1a2b45] line-clamp-2">{r.objeto}</p>
-                        <p className="text-xs text-[#1a2b45]/60 mt-1">{r.orgao}</p>
+                        <p className="text-xs text-[#1a2b45]/60 mt-1">
+                          {r.orgao}
+                          {r.codigoUnidade && <span className="ml-2 text-[#1a2b45]/40">(UASG: {r.codigoUnidade})</span>}
+                        </p>
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="font-bold text-[#2c4a70]">

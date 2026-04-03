@@ -3,3 +3,7 @@ export * from './eventos';
 export * from './certidoes';
 export * from './pagamentos';
 export * from './conlicitacao';
+export * from './solicitacoes';
+export * from './documentos';
+export * from './clientes';
+export * from './relatorios';

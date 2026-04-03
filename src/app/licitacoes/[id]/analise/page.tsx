@@ -23,7 +23,7 @@ export default function AnalisePage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const { user, loading } = useAuth();
+  const { user, loading, isCliente } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
 
   const [licitacao, setLicitacao] = useState<Licitacao | null>(null);
@@ -32,6 +32,7 @@ export default function AnalisePage() {
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [menuExportar, setMenuExportar] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -134,14 +135,16 @@ export default function AnalisePage() {
               {salvo && (
                 <span className="text-sm text-green-600 font-medium">Salvo!</span>
               )}
-              <button
-                onClick={handleSalvar}
-                disabled={salvando}
-                className="btn-secondary flex items-center gap-2 text-sm py-2 px-4"
-              >
-                {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Salvar
-              </button>
+              {!isCliente && (
+                <button
+                  onClick={handleSalvar}
+                  disabled={salvando}
+                  className="btn-secondary flex items-center gap-2 text-sm py-2 px-4"
+                >
+                  {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Salvar
+                </button>
+              )}
               <button
                 onClick={handleExportarWord}
                 disabled={exportando}
@@ -460,25 +463,27 @@ function CampoEditavel({
   onChange,
   placeholder,
   multiline = false,
+  readOnly = false,
 }: {
   label: string;
   valor: string;
   onChange: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
+  readOnly?: boolean;
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-baseline gap-1">
       <span className="font-bold text-[#2c4a70] text-sm min-w-[200px] flex-shrink-0">{label}:</span>
       <div className="flex-1">
-        {/* Visível na tela, editável */}
         {multiline ? (
           <textarea
             value={valor}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             rows={2}
-            className="w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent resize-none print:border-none print:p-0"
+            readOnly={readOnly}
+            className={`w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent resize-none print:border-none print:p-0 ${readOnly ? 'cursor-default' : ''}`}
           />
         ) : (
           <input
@@ -486,7 +491,8 @@ function CampoEditavel({
             value={valor}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent print:border-none print:p-0"
+            readOnly={readOnly}
+            className={`w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent print:border-none print:p-0 ${readOnly ? 'cursor-default' : ''}`}
           />
         )}
       </div>
@@ -499,11 +505,13 @@ function SecaoEditavel({
   valor,
   onChange,
   placeholder,
+  readOnly = false,
 }: {
   titulo: string;
   valor: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  readOnly?: boolean;
 }) {
   return (
     <div>
@@ -515,7 +523,8 @@ function SecaoEditavel({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={4}
-        className="w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent resize-y min-h-[60px] print:border-none print:p-0 print:min-h-0"
+        readOnly={readOnly}
+        className={`w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent resize-y min-h-[60px] print:border-none print:p-0 print:min-h-0 ${readOnly ? 'cursor-default' : ''}`}
       />
     </div>
   );
