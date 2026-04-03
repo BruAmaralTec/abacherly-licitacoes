@@ -54,10 +54,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const usersRef = collection(db, 'users');
           const q = query(usersRef, where('email', '==', user.email));
           const querySnapshot = await getDocs(q);
-          
+
+          console.log('[Auth] Buscando perfil para:', user.email, '| Encontrados:', querySnapshot.size);
+
           if (!querySnapshot.empty) {
             const userDoc = querySnapshot.docs[0];
             const data = userDoc.data();
+            console.log('[Auth] Perfil encontrado:', { name: data.name, role: data.role, clientId: data.clientId });
             setUserProfile({
               uid: user.uid,
               email: user.email,
@@ -68,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               lastLogin: data.lastLogin?.toDate(),
             });
           } else {
+            console.warn('[Auth] Perfil NÃO encontrado para:', user.email);
             // Se não encontrar perfil, criar um básico
             setUserProfile({
               uid: user.uid,
@@ -77,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
           }
         } catch (error) {
-          console.error('Erro ao buscar perfil:', error);
+          console.error('[Auth] Erro ao buscar perfil:', error);
           // Fallback em caso de erro
           setUserProfile({
             uid: user.uid,
