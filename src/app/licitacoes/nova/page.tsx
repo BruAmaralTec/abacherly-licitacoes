@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
@@ -25,6 +25,18 @@ import { processarSolicitacao } from '@/lib/services/solicitacoes';
 import { buscarEdital, buscarEditalPorUrl, isConlicitacaoConfigurado, DadosEdital } from '@/lib/services/conlicitacao';
 
 export default function NovaLicitacaoPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
+        <div className="spinner"></div>
+      </div>
+    }>
+      <NovaLicitacaoContent />
+    </Suspense>
+  );
+}
+
+function NovaLicitacaoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, userProfile, loading, isAdmin } = useAuth();
