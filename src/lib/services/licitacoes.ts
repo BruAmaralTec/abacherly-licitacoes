@@ -9,6 +9,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -38,7 +39,8 @@ export async function listarLicitacoes(clientId: string): Promise<Licitacao[]> {
   const q = query(
     collection(db, COLLECTION),
     where('clientId', '==', clientId),
-    orderBy('criadoEm', 'desc')
+    orderBy('criadoEm', 'desc'),
+    limit(100)
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Licitacao));

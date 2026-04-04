@@ -16,7 +16,6 @@ import Sidebar from '@/components/Sidebar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { buscarLicitacao, atualizarLicitacao } from '@/lib/services/licitacoes';
-import { exportarAnaliseWord } from '@/lib/services/exportarWord';
 import { Licitacao, AnaliseEdital } from '@/lib/types';
 
 export default function AnalisePage() {
@@ -81,6 +80,7 @@ export default function AnalisePage() {
     if (!licitacao) return;
     setExportando(true);
     try {
+      const { exportarAnaliseWord } = await import('@/lib/services/exportarWord');
       await exportarAnaliseWord(licitacao, analise);
     } catch (error) {
       console.error('Erro ao exportar Word:', error);

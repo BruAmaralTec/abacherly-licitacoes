@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -144,8 +144,9 @@ export default function Sidebar() {
     };
   }, [isOpen]);
 
-  const filteredNavItems = navItems.filter(item => 
-    userProfile && item.roles.includes(userProfile.role)
+  const filteredNavItems = useMemo(() =>
+    navItems.filter(item => userProfile && item.roles.includes(userProfile.role)),
+    [userProfile?.role]
   );
 
   const SidebarContent = () => (

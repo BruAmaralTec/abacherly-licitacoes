@@ -8,6 +8,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -37,7 +38,8 @@ export async function listarSolicitacoesPorCliente(clientId: string): Promise<So
   const q = query(
     collection(db, COLLECTION),
     where('clientId', '==', clientId),
-    orderBy('criadoEm', 'desc')
+    orderBy('criadoEm', 'desc'),
+    limit(100)
   );
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Solicitacao);
@@ -49,10 +51,11 @@ export async function listarTodasSolicitacoes(status?: SolicitacaoStatus): Promi
     q = query(
       collection(db, COLLECTION),
       where('status', '==', status),
-      orderBy('criadoEm', 'desc')
+      orderBy('criadoEm', 'desc'),
+      limit(200)
     );
   } else {
-    q = query(collection(db, COLLECTION), orderBy('criadoEm', 'desc'));
+    q = query(collection(db, COLLECTION), orderBy('criadoEm', 'desc'), limit(200));
   }
   const snapshot = await getDocs(q);
   return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Solicitacao);
