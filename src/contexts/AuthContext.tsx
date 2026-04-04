@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { 
+import { createContext, useContext, useEffect, useState, ReactNode, useMemo } from 'react';
+import {
   User,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -37,63 +37,91 @@ interface AuthContextType {
   isCliente: boolean;
 }
 
+const CACHE_KEY = 'abacherly_user_profile';
+
+function getCachedProfile(): UserProfile | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch {}
+  return null;
+}
+
+function setCachedProfile(profile: UserProfile | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (profile) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(profile));
+    } else {
+      localStorage.removeItem(CACHE_KEY);
+    }
+  } catch {}
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(getCachedProfile);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      
-      if (user && user.email) {
-        // Buscar perfil do usuário no Firestore pelo email
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+
+      if (firebaseUser && firebaseUser.email) {
+        // Se já temos cache e o email bate, mostrar imediatamente
+        const cached = getCachedProfile();
+        if (cached && cached.email === firebaseUser.email) {
+          setUserProfile(cached);
+          setLoading(false);
+        }
+
+        // Buscar perfil atualizado do Firestore em background
         try {
           const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('email', '==', user.email));
+          const q = query(usersRef, where('email', '==', firebaseUser.email));
           const querySnapshot = await getDocs(q);
-
-          console.log('[Auth] Buscando perfil para:', user.email, '| Encontrados:', querySnapshot.size);
 
           if (!querySnapshot.empty) {
             const userDoc = querySnapshot.docs[0];
             const data = userDoc.data();
-            console.log('[Auth] Perfil encontrado:', { name: data.name, role: data.role, clientId: data.clientId });
-            setUserProfile({
-              uid: user.uid,
-              email: user.email,
+            const profile: UserProfile = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
               name: data.name || 'Usuário',
               role: data.role || 'operator',
               clientId: data.clientId,
-              createdAt: data.createdAt?.toDate(),
-              lastLogin: data.lastLogin?.toDate(),
-            });
+            };
+            setUserProfile(profile);
+            setCachedProfile(profile);
           } else {
-            console.warn('[Auth] Perfil NÃO encontrado para:', user.email);
-            // Se não encontrar perfil, criar um básico
-            setUserProfile({
-              uid: user.uid,
-              email: user.email,
-              name: user.email.split('@')[0],
+            const fallback: UserProfile = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.email.split('@')[0],
               role: 'operator',
-            });
+            };
+            setUserProfile(fallback);
+            setCachedProfile(fallback);
           }
         } catch (error) {
           console.error('[Auth] Erro ao buscar perfil:', error);
-          // Fallback em caso de erro
-          setUserProfile({
-            uid: user.uid,
-            email: user.email,
-            name: user.email.split('@')[0],
-            role: 'operator',
-          });
+          if (!getCachedProfile()) {
+            setUserProfile({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.email.split('@')[0],
+              role: 'operator',
+            });
+          }
         }
       } else {
         setUserProfile(null);
+        setCachedProfile(null);
       }
-      
+
       setLoading(false);
     });
 
@@ -107,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await firebaseSignOut(auth);
     setUserProfile(null);
+    setCachedProfile(null);
   };
 
   const resetPassword = async (email: string) => {
@@ -118,19 +147,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isOperator = userProfile?.role === 'operator' || isAdmin;
   const isCliente = userProfile?.role === 'cliente';
 
+  const value = useMemo(() => ({
+    user,
+    userProfile,
+    loading,
+    signIn,
+    signOut,
+    resetPassword,
+    isSuperAdmin,
+    isAdmin,
+    isOperator,
+    isCliente,
+  }), [user, userProfile, loading, isSuperAdmin, isAdmin, isOperator, isCliente]);
+
   return (
-    <AuthContext.Provider value={{
-      user,
-      userProfile,
-      loading,
-      signIn,
-      signOut,
-      resetPassword,
-      isSuperAdmin,
-      isAdmin,
-      isOperator,
-      isCliente,
-    }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

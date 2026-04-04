@@ -19,6 +19,10 @@ export default function RootLayout({
     <html lang="pt-BR" className="h-full">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+        <link rel="preconnect" href="https://firestore.googleapis.com" />
+        <link rel="preconnect" href="https://www.googleapis.com" />
+        <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
+        <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
       </head>
       <body className="font-serif antialiased min-h-full h-full w-full">
         <AuthProvider>

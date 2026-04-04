@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
+import { PageSkeleton } from '@/components/Skeleton';
 import Footer from '@/components/Footer';
 import { listarEventos, marcarConcluido } from '@/lib/services/eventos';
 import { Evento, EVENTO_LABELS } from '@/lib/types';
@@ -56,8 +57,13 @@ export default function AgendaPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
-        <div className="spinner"></div>
+      <div className="min-h-screen w-full bg-[#f8fafc]">
+        <Sidebar />
+        <div className="w-full lg:pl-64 min-h-screen flex flex-col">
+          <main className="flex-1 w-full p-4 sm:p-6 lg:p-8">
+            <PageSkeleton />
+          </main>
+        </div>
       </div>
     );
   }
