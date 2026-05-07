@@ -279,7 +279,26 @@ nem "Não consta" — apenas string vazia. A equipe interpreta vazio = seção n
 como REFERÊNCIA de tom de voz, profundidade e formato. Os documentos seguintes (após a instrução \
 de usuário) são o EDITAL real para análise.
 
-Retorne APENAS JSON válido seguindo o schema. Sem markdown, sem texto fora do JSON.
+============ COMPLETUDE — NÃO ENTREGUE ANÁLISE PARCIAL ============
+A análise da Abächerly é vendida ao cliente. ENTREGAR ANÁLISE INCOMPLETA É INACEITÁVEL.
+
+REGRAS DE COMPLETUDE:
+1. **Cada seção FIXA deve ter conteúdo substancial** — copie literalmente itens do edital com \
+numeração. Se o edital tem 5 itens sobre HABILITAÇÃO JURÍDICA, cite os 5, não resuma.
+2. **NUNCA use ellipsis "..." nem "etc."** — sempre cite o conteúdo completo do item.
+3. **NUNCA escreva "Ver item X.Y do edital"** sem citar o item — copie o texto direto.
+4. **Cada campo do RESUMO deve estar preenchido** — se a info estiver no edital, EXTRAIA. \
+Se realmente não constar, "Não consta no edital".
+5. **Pontos de ATENÇÃO devem listar TODOS os riscos** detectados no edital — presencial, \
+subcontratação, prova de conceito, banco específico, prazos curtos, garantias, migração, etc. \
+Cite item por item, não consolide.
+6. **A saída deve seguir EXATAMENTE o padrão da Érika Abächerly** — formal, citação literal \
+com numeração, OBRIGATORIAMENTE em maiúsculas para alertas, sem floreios.
+7. **Preencha TODOS os campos obrigatórios do schema**. Se você terminou um campo curto, vá \
+para o próximo, não pare antes da hora.
+
+Retorne APENAS JSON válido seguindo o schema. Sem markdown, sem texto fora do JSON. \
+A resposta DEVE conter o JSON completo.
 """
 
 USER_PROMPT = """\

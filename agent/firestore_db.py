@@ -201,16 +201,22 @@ def get_config_modelo_gemini(default: str) -> str:
         return default
 
 
-def listar_exemplos_treinamento() -> list[dict[str, Any]]:
+def listar_exemplos_treinamento(limit: int | None = None) -> list[dict[str, Any]]:
     """Lista os exemplos de análise (few-shot reference) cadastrados pelo admin.
 
-    Cada item tem: nome, descricao, arquivoPath (path no Firebase Storage),
-    enviadoPor, criadoEm. O agente baixa estes arquivos e injeta no prompt.
+    Ordenados por criadoEm desc — os mais recentes representam o padrão atual
+    da Abacherly. Se `limit` for passado, retorna apenas os N mais recentes
+    (recomendado pra evitar contexto excessivo no Gemini, que prejudica
+    qualidade e velocidade).
     """
     db = get_db()
-    docs = db.collection("exemplos_analise").stream()
+    query = db.collection("exemplos_analise").order_by(
+        "criadoEm", direction=firestore.Query.DESCENDING
+    )
+    if limit:
+        query = query.limit(limit)
     out: list[dict[str, Any]] = []
-    for d in docs:
+    for d in query.stream():
         data = d.to_dict() or {}
         out.append({
             "id": d.id,

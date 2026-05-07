@@ -8,6 +8,19 @@ GCP_LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
 # via Firestore (configuracoes/sistema.modeloGemini, lido a cada chamada).
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
+# Quantos exemplos de few-shot (analises previas da equipe) carregar.
+# Mais exemplos != melhor qualidade — Gemini com 100+ docs tende a:
+#   1. Confundir o foco (qual e o EDITAL real?)
+#   2. Cortar saida por exceder context window
+#   3. Demorar muito mais
+# 10 mais recentes representam o padrao atual da Abacherly e dao bom few-shot.
+MAX_EXEMPLOS_FEWSHOT = int(os.environ.get("MAX_EXEMPLOS_FEWSHOT", "10"))
+
+# Maximo de tokens na resposta. Com 16 secoes + cabecalho, citacoes literais
+# longas, queremos garantir que a saida nao seja truncada. 32768 (32k) e o
+# limite max do Gemini 2.5/3.x para JSON.
+MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "32768"))
+
 # Bucket GCS dedicado a inputs do agente (lifecycle 6 meses configurado fora)
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "abacherly-analises")
 

@@ -12,7 +12,13 @@ from vertexai.generative_models import (
     Part,
 )
 
-from config import GCP_PROJECT, GCP_LOCATION, GEMINI_MODEL
+from config import (
+    GCP_PROJECT,
+    GCP_LOCATION,
+    GEMINI_MODEL,
+    MAX_EXEMPLOS_FEWSHOT,
+    MAX_OUTPUT_TOKENS,
+)
 from firestore_db import get_config_modelo_gemini, listar_exemplos_treinamento
 from prompts import (
     CNPJ_SCHEMA,
@@ -54,7 +60,7 @@ def _carregar_exemplos() -> list[Part]:
 
     parts: list[Part] = []
     try:
-        exemplos = listar_exemplos_treinamento()
+        exemplos = listar_exemplos_treinamento(limit=MAX_EXEMPLOS_FEWSHOT)
         for ex in exemplos:
             path = ex.get("arquivoPath", "")
             if not path:
@@ -113,6 +119,7 @@ def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
         generation_config=GenerationConfig(
             temperature=0.1,
             top_p=0.95,
+            max_output_tokens=MAX_OUTPUT_TOKENS,
             response_mime_type="application/json",
             response_schema=EXTRACT_SCHEMA,
         ),
