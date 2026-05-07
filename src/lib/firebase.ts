@@ -7,13 +7,15 @@ import {
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
+const env = (v: string | undefined, fallback: string) => (v ?? fallback).trim();
+
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCaktggmquKLhi18qLRVdWxqZNylWQFfng",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "abacherly-licitacoes.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "abacherly-licitacoes",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "abacherly-licitacoes.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "1036949086437",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:1036949086437:web:79d2c554503a7bb327f40c",
+  apiKey: env(process.env.NEXT_PUBLIC_FIREBASE_API_KEY, "AIzaSyCaktggmquKLhi18qLRVdWxqZNylWQFfng"),
+  authDomain: env(process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, "abacherly-licitacoes.firebaseapp.com"),
+  projectId: env(process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID, "abacherly-licitacoes"),
+  storageBucket: env(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, "abacherly-licitacoes.firebasestorage.app"),
+  messagingSenderId: env(process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, "1036949086437"),
+  appId: env(process.env.NEXT_PUBLIC_FIREBASE_APP_ID, "1:1036949086437:web:79d2c554503a7bb327f40c"),
 };
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
