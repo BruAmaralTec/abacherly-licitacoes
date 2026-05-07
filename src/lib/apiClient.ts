@@ -74,4 +74,6 @@ export const api = {
   put: <T>(path: string, body?: any) =>
     fazerFetch<T>(path, { method: 'PUT', body: bodyJson(body) }),
   delete: (path: string) => fazerFetch<void>(path, { method: 'DELETE' }),
+  upload: <T>(path: string, form: FormData) =>
+    fazerFetch<T>(path, { method: 'POST', body: form }),
 };

@@ -22,7 +22,7 @@ from firestore_db import (
     criar_analise,
     criar_licitacao,
 )
-from gemini_client import analisar_arquivos
+from gemini_client import analisar_arquivos, extrair_cartao_cnpj
 from storage_gcs import baixar_para_memoria, upload_arquivo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -96,6 +96,31 @@ async def criar_analise_endpoint(
     )
 
     return AnaliseResponse(analise_id=analise_id, status="processando")
+
+
+class CNPJResponse(BaseModel):
+    extracao: dict[str, Any]
+
+
+@app.post("/extrair-cnpj", response_model=CNPJResponse)
+async def extrair_cnpj_endpoint(
+    arquivo: UploadFile = File(...),
+) -> CNPJResponse:
+    """Extrai dados de um Cartão CNPJ (PDF ou imagem) para pré-preenchimento de cadastro."""
+    conteudo = await arquivo.read()
+    if len(conteudo) > MAX_FILE_SIZE:
+        raise HTTPException(413, f"Arquivo excede {MAX_FILE_SIZE} bytes")
+    mime = arquivo.content_type or "application/pdf"
+    if mime not in ACCEPTED_MIMES:
+        logger.warning("mime não-listado %s para cartão CNPJ — aceitando mesmo assim", mime)
+
+    try:
+        dados = extrair_cartao_cnpj(conteudo, mime)
+        logger.info("cartão CNPJ extraído: %s", dados.get("cnpj", "?"))
+        return CNPJResponse(extracao=dados)
+    except Exception as exc:
+        logger.exception("erro extraindo cartão CNPJ: %s", exc)
+        raise HTTPException(500, f"Erro ao extrair dados: {exc}")
 
 
 @app.get("/analise/{analise_id}", response_model=AnaliseResponse)

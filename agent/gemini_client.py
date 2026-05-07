@@ -14,7 +14,14 @@ from vertexai.generative_models import (
 
 from config import GCP_PROJECT, GCP_LOCATION, GEMINI_MODEL
 from firestore_db import listar_exemplos_treinamento
-from prompts import EXTRACT_SCHEMA, SYSTEM_INSTRUCTION, USER_PROMPT
+from prompts import (
+    CNPJ_SCHEMA,
+    CNPJ_SYSTEM_INSTRUCTION,
+    CNPJ_USER_PROMPT,
+    EXTRACT_SCHEMA,
+    SYSTEM_INSTRUCTION,
+    USER_PROMPT,
+)
 from storage_gcs import baixar_de_firebase_storage
 
 logger = logging.getLogger(__name__)
@@ -111,4 +118,40 @@ def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
         return json.loads(text)
     except json.JSONDecodeError as exc:
         logger.error("JSON inválido do Gemini: %s\nresposta:\n%s", exc, text[:1000])
+        raise ValueError("Resposta do modelo não pôde ser parseada como JSON") from exc
+
+
+def extrair_cartao_cnpj(conteudo: bytes, mime_type: str) -> dict[str, Any]:
+    """Extrai dados estruturados de um Cartão CNPJ (PDF ou imagem).
+
+    Não usa few-shot dos exemplos de treinamento (são para edital de licitação,
+    contexto diferente).
+    """
+    _ensure_init()
+
+    model = GenerativeModel(
+        model_name=GEMINI_MODEL,
+        system_instruction=CNPJ_SYSTEM_INSTRUCTION,
+    )
+
+    parts: list[Part] = [
+        Part.from_data(data=conteudo, mime_type=mime_type),
+        Part.from_text(CNPJ_USER_PROMPT),
+    ]
+
+    response = model.generate_content(
+        parts,
+        generation_config=GenerationConfig(
+            temperature=0.0,
+            top_p=0.95,
+            response_mime_type="application/json",
+            response_schema=CNPJ_SCHEMA,
+        ),
+    )
+
+    text = response.text or "{}"
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        logger.error("JSON inválido do Gemini (CNPJ): %s\nresposta:\n%s", exc, text[:1000])
         raise ValueError("Resposta do modelo não pôde ser parseada como JSON") from exc

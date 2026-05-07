@@ -4,7 +4,7 @@ steps:
     args:
       - build
       - -t
-      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$COMMIT_SHA'
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$BUILD_ID'
       - -t
       - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:latest'
       - .
@@ -23,7 +23,7 @@ steps:
       - run
       - deploy
       - abacherly-agent
-      - --image=us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$COMMIT_SHA
+      - --image=us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$BUILD_ID
       - --region=us-central1
       - --platform=managed
       - --service-account=abacherly-agent@${PROJECT_ID}.iam.gserviceaccount.com
@@ -36,7 +36,7 @@ steps:
       - --set-env-vars=GCP_PROJECT=${PROJECT_ID},GCP_LOCATION=us-central1,GEMINI_MODEL=gemini-2.0-flash-001,GCS_BUCKET=abacherly-analises
 
 images:
-  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$COMMIT_SHA'
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$BUILD_ID'
 
 options:
   logging: CLOUD_LOGGING_ONLY

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2,
@@ -10,12 +10,23 @@ import {
   CheckCircle,
   Plus,
   X,
+  Sparkles,
+  Upload,
+  FileText,
 } from 'lucide-react';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import { PageSkeleton } from '@/components/Skeleton';
 import Footer from '@/components/Footer';
-import { listarClientes, buscarCliente, salvarCliente } from '@/lib/services/clientes';
+import {
+  listarClientes,
+  buscarCliente,
+  salvarCliente,
+  extrairCartaoCNPJ,
+  ExtracaoCartaoCNPJ,
+} from '@/lib/services/clientes';
 import { ClienteInfo, Modalidade } from '@/lib/types';
 
 const MODALIDADES_OPCOES: string[] = [
@@ -44,6 +55,9 @@ export default function AdminClientesPage() {
   const [salvo, setSalvo] = useState(false);
   const [novaPalavra, setNovaPalavra] = useState('');
   const [novoDoc, setNovoDoc] = useState('');
+  const [analisandoCnpj, setAnalisandoCnpj] = useState(false);
+  const [erroCnpj, setErroCnpj] = useState('');
+  const cartaoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -100,6 +114,42 @@ export default function AdminClientesPage() {
   const updateField = (campo: string, valor: any) => {
     if (!clienteSelecionado) return;
     setClienteSelecionado({ ...clienteSelecionado, [campo]: valor });
+  };
+
+  const handleAnalisarCartao = async (file: File) => {
+    if (!clienteSelecionado) return;
+    setAnalisandoCnpj(true);
+    setErroCnpj('');
+    try {
+      const dados: ExtracaoCartaoCNPJ = await extrairCartaoCNPJ(file);
+      const clientId =
+        clienteSelecionado.id ||
+        `cliente_${(dados.cnpj || '').replace(/\D/g, '') || Date.now()}`;
+      const path = `clientes/${clientId}/cadastro/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const ref = storageRef(storage, path);
+      await uploadBytes(ref, file, { contentType: file.type });
+      const url = await getDownloadURL(ref);
+
+      setClienteSelecionado({
+        ...clienteSelecionado,
+        id: clientId,
+        cnpj: dados.cnpj || clienteSelecionado.cnpj,
+        razaoSocial: dados.razaoSocial || clienteSelecionado.razaoSocial,
+        nomeFantasia: dados.nomeFantasia || clienteSelecionado.nomeFantasia,
+        porteEmpresa: dados.porteEmpresa || clienteSelecionado.porteEmpresa,
+        telefone: dados.telefone || clienteSelecionado.telefone,
+        emailContato: dados.emailContato || clienteSelecionado.emailContato,
+        endereco: dados.endereco || clienteSelecionado.endereco,
+        cartaoCNPJUrl: url,
+        cartaoCNPJPath: path,
+      });
+    } catch (e: any) {
+      console.error('Erro analisando cartão CNPJ:', e);
+      setErroCnpj(e?.message || 'Erro ao analisar cartão CNPJ');
+    } finally {
+      setAnalisandoCnpj(false);
+      if (cartaoInputRef.current) cartaoInputRef.current.value = '';
+    }
   };
 
   const toggleModalidade = (mod: string) => {
@@ -195,6 +245,83 @@ export default function AdminClientesPage() {
               </div>
 
               <div className="space-y-6">
+                {/* Cartão CNPJ — pré-preenchimento via IA */}
+                <div className="card p-4 sm:p-6 border border-[#4674e8]/20 bg-[#4674e8]/5">
+                  <h2 className="text-lg font-bold text-[#2c4a70] mb-1 flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-[#4674e8]" />
+                    Cartão CNPJ
+                  </h2>
+                  <p className="text-sm text-[#1a2b45]/70 mb-3">
+                    Suba o Cartão CNPJ (PDF ou imagem) e o agente preenche os campos abaixo automaticamente.
+                  </p>
+
+                  <div
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) handleAnalisarCartao(f);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors cursor-pointer ${
+                      analisandoCnpj
+                        ? 'opacity-60 border-[#4674e8]/40'
+                        : 'border-[#4674e8]/40 hover:bg-white'
+                    }`}
+                    onClick={() => !analisandoCnpj && cartaoInputRef.current?.click()}
+                  >
+                    {analisandoCnpj ? (
+                      <>
+                        <Loader2 className="w-8 h-8 text-[#4674e8] mx-auto mb-2 animate-spin" />
+                        <p className="font-bold text-[#2c4a70]">Analisando cartão CNPJ...</p>
+                        <p className="text-xs text-[#1a2b45]/60 mt-1">
+                          Isso leva alguns segundos
+                        </p>
+                      </>
+                    ) : clienteSelecionado.cartaoCNPJUrl ? (
+                      <div className="flex items-center justify-center gap-3">
+                        <FileText className="w-8 h-8 text-[#4674e8]" />
+                        <div className="text-left">
+                          <p className="font-bold text-[#2c4a70]">Cartão CNPJ anexado</p>
+                          <a
+                            href={clienteSelecionado.cartaoCNPJUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs text-[#4674e8] hover:underline"
+                          >
+                            Visualizar arquivo
+                          </a>
+                          <p className="text-xs text-[#1a2b45]/60">
+                            Clique aqui para substituir e re-analisar
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-[#4674e8] mx-auto mb-2" />
+                        <p className="font-bold text-[#2c4a70]">Arraste o arquivo ou clique para selecionar</p>
+                        <p className="text-xs text-[#1a2b45]/60 mt-1">PDF, PNG, JPG</p>
+                      </>
+                    )}
+                    <input
+                      ref={cartaoInputRef}
+                      type="file"
+                      accept=".pdf,image/png,image/jpeg"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleAnalisarCartao(f);
+                      }}
+                    />
+                  </div>
+
+                  {erroCnpj && (
+                    <div className="mt-3 p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+                      {erroCnpj}
+                    </div>
+                  )}
+                </div>
+
                 {/* Dados Cadastrais */}
                 <div className="card p-4 sm:p-6">
                   <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Dados Cadastrais</h2>

@@ -131,3 +131,69 @@ Foco especial em:
 
 Retorne o JSON completo seguindo o schema fornecido.
 """
+
+
+# ============================================================
+# Extração de Cartão CNPJ — pré-preenchimento de cadastro
+# ============================================================
+
+CNPJ_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "cnpj": {
+            "type": "string",
+            "description": "CNPJ formatado XX.XXX.XXX/XXXX-XX"
+        },
+        "razaoSocial": {
+            "type": "string",
+            "description": "Razão Social (NOME EMPRESARIAL no cartão)"
+        },
+        "nomeFantasia": {
+            "type": "string",
+            "description": "Nome Fantasia (TÍTULO DO ESTABELECIMENTO). Vazio se não houver."
+        },
+        "porteEmpresa": {
+            "type": "string",
+            "enum": ["MEI", "ME", "EPP", "Medio", "Grande", ""],
+            "description": "Porte: MEI, ME, EPP, Medio, Grande. Mapear: MICROEMPRESA -> ME, EMPRESA DE PEQUENO PORTE -> EPP, DEMAIS / não informado -> Medio (deixa em branco se incerto)."
+        },
+        "telefone": {
+            "type": "string",
+            "description": "Telefone formatado (XX) XXXX-XXXX. Vazio se não houver."
+        },
+        "emailContato": {
+            "type": "string",
+            "description": "E-mail. Vazio se não houver."
+        },
+        "endereco": {
+            "type": "string",
+            "description": "Endereço completo concatenado: Logradouro, Número, Complemento, Bairro, Município/UF, CEP."
+        }
+    },
+    "required": ["cnpj", "razaoSocial"]
+}
+
+CNPJ_SYSTEM_INSTRUCTION = """\
+Você é um extrator de dados de Cartão CNPJ emitido pela Receita Federal do Brasil.
+
+Sua tarefa: ler o documento (PDF ou imagem do cartão CNPJ) e devolver APENAS um JSON \
+com os campos do schema, em português do Brasil.
+
+Regras:
+1. CNPJ no formato XX.XXX.XXX/XXXX-XX (com pontuação).
+2. Razão Social = campo "NOME EMPRESARIAL".
+3. Nome Fantasia = campo "TÍTULO DO ESTABELECIMENTO (NOME DE FANTASIA)". Se não tiver, devolva string vazia.
+4. Porte: mapeie "MICROEMPRESA"->"ME", "EMPRESA DE PEQUENO PORTE"->"EPP", "DEMAIS"->"Medio", \
+   se for MEI deixe "MEI", se duvidar deixe "" (string vazia).
+5. Endereço: concatene LOGRADOURO, NÚMERO, COMPLEMENTO (se houver), BAIRRO, MUNICÍPIO/UF, CEP \
+   numa única string legível. Exemplo: "Rua Exemplo, 123, Sala 4, Centro, São Paulo/SP, 01000-000".
+6. Telefone formatado com DDD em parênteses. Vazio se não constar.
+7. E-mail somente se constar. Vazio se não houver.
+8. Se um campo opcional não constar, devolva string vazia "" — NUNCA invente.
+9. Retorne SOMENTE o JSON, sem markdown, sem texto extra.
+"""
+
+CNPJ_USER_PROMPT = """\
+Extraia os dados do Cartão CNPJ anexo seguindo o schema JSON fornecido. \
+Retorne apenas o JSON.
+"""

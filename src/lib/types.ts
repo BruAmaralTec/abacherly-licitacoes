@@ -237,6 +237,8 @@ export interface ClienteInfo {
   palavrasChaveObjeto?: string[];
   documentosObrigatorios: string[];
   observacoes?: string;
+  cartaoCNPJUrl?: string;
+  cartaoCNPJPath?: string;
   atualizadoEm: Timestamp;
   atualizadoPor: string;
 }

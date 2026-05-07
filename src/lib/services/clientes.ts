@@ -27,3 +27,23 @@ export async function atualizarCliente(
 export async function excluirCliente(clientId: string): Promise<void> {
   await api.delete(`/api/clientes/${encodeURIComponent(clientId)}`);
 }
+
+export interface ExtracaoCartaoCNPJ {
+  cnpj?: string;
+  razaoSocial?: string;
+  nomeFantasia?: string;
+  porteEmpresa?: string;
+  telefone?: string;
+  emailContato?: string;
+  endereco?: string;
+}
+
+export async function extrairCartaoCNPJ(arquivo: File): Promise<ExtracaoCartaoCNPJ> {
+  const form = new FormData();
+  form.append('arquivo', arquivo, arquivo.name);
+  const r = await api.upload<{ extracao: ExtracaoCartaoCNPJ }>(
+    '/api/clientes/extrair-cnpj',
+    form
+  );
+  return r.extracao || {};
+}
