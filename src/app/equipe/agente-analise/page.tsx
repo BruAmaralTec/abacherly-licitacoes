@@ -165,13 +165,12 @@ export default function AgenteAnalisePage() {
               >
                 <Upload className="w-12 h-12 text-[#4674e8] mx-auto mb-3" />
                 <p className="font-bold text-[#2c4a70] mb-1">Arraste os arquivos aqui</p>
-                <p className="text-sm text-[#1a2b45]/60">ou clique para selecionar — PDF, DOCX, imagens</p>
+                <p className="text-sm text-[#1a2b45]/60">ou clique para selecionar — qualquer arquivo do edital (PDF, DOCX, XLS, imagens, etc.)</p>
                 <input
                   ref={inputRef}
                   type="file"
                   multiple
                   className="hidden"
-                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt"
                   onChange={(e) => adicionarArquivos(e.target.files)}
                 />
               </div>
