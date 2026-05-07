@@ -4,9 +4,6 @@ import {
   initializeFirestore,
   getFirestore,
   Firestore,
-  CACHE_SIZE_UNLIMITED,
-  persistentLocalCache,
-  persistentMultipleTabManager,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -21,22 +18,16 @@ const firebaseConfig = {
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Firestore: força auto-detect de long-polling. WebSockets podem ser bloqueados
-// por proxies corporativos / antivírus / extensões — long-polling sempre passa.
-// experimentalAutoDetectLongPolling testa WebSocket primeiro e cai pra HTTP se falhar.
+// Firestore: força HTTP long-polling sempre (em vez de WebSockets).
+// Resolve "client is offline" em redes com proxy/antivirus/extensoes que
+// bloqueiam WebSocket. HTTP passa em 100% das redes que abrem o restante do site.
+// Sem persistencia local — evita problemas com IndexedDB restrito.
 let dbInstance: Firestore;
 try {
   dbInstance = initializeFirestore(app, {
-    experimentalAutoDetectLongPolling: true,
-    localCache: typeof window !== 'undefined'
-      ? persistentLocalCache({
-          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
-          tabManager: persistentMultipleTabManager(),
-        })
-      : undefined,
+    experimentalForceLongPolling: true,
   });
 } catch {
-  // Se já foi inicializado em outro lugar (HMR), reusa
   dbInstance = getFirestore(app);
 }
 
