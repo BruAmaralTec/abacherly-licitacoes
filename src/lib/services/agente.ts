@@ -65,13 +65,15 @@ export async function buscarStatusAnalise(analiseId: string): Promise<AnaliseRes
   return res.json();
 }
 
-/** Polls until status != processando, timeout 5min default */
+/** Polls until status != processando. Default timeout 15min — análises com
+ *  edital grande + few-shot extenso podem demorar 5-10min com Gemini.
+ *  Cloud Run timeout do background é 540s (9min), então 15min é folga segura. */
 export async function aguardarAnalise(
   analiseId: string,
   opts: { intervaloMs?: number; timeoutMs?: number } = {}
 ): Promise<AnaliseResponse> {
-  const intervalo = opts.intervaloMs ?? 3000;
-  const timeout = opts.timeoutMs ?? 5 * 60 * 1000;
+  const intervalo = opts.intervaloMs ?? 5000;
+  const timeout = opts.timeoutMs ?? 15 * 60 * 1000;
   const inicio = Date.now();
 
   while (Date.now() - inicio < timeout) {
@@ -79,5 +81,5 @@ export async function aguardarAnalise(
     if (r.status !== 'processando') return r;
     await new Promise((res) => setTimeout(res, intervalo));
   }
-  throw new Error('Timeout ao aguardar análise');
+  throw new Error('A análise ainda está em processamento — acompanhe pela lista de licitações em /licitacoes em alguns minutos.');
 }

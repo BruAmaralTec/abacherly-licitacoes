@@ -301,11 +301,18 @@ export default function AgenteAnalisePage() {
               <div className="flex items-start gap-3">
                 <AlertCircle className="w-6 h-6 text-red-600 flex-shrink-0" />
                 <div className="flex-1">
-                  <h2 className="font-bold text-[#2c4a70]">Erro ao processar</h2>
+                  <h2 className="font-bold text-[#2c4a70]">
+                    {erro.toLowerCase().includes('processamento') ? 'Análise ainda em andamento' : 'Erro ao processar'}
+                  </h2>
                   <p className="text-sm text-red-700 mt-1">{erro || 'Erro desconhecido'}</p>
-                  <button onClick={novaAnalise} className="btn-secondary mt-4">
-                    Tentar novamente
-                  </button>
+                  <div className="flex gap-3 mt-4">
+                    <Link href="/equipe/licitacoes" className="btn-primary text-sm">
+                      Ver licitações
+                    </Link>
+                    <button onClick={novaAnalise} className="btn-secondary">
+                      Nova análise
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
