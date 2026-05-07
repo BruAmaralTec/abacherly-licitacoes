@@ -54,3 +54,13 @@ def baixar_para_memoria(gs_uri: str) -> bytes:
     buf = io.BytesIO()
     blob.download_to_file(buf)
     return buf.getvalue()
+
+
+def baixar_de_firebase_storage(path: str) -> bytes:
+    """Baixa um arquivo do bucket default do Firebase (abacherly-licitacoes.firebasestorage.app)."""
+    bucket_name = "abacherly-licitacoes.firebasestorage.app"
+    client = get_client()
+    blob = client.bucket(bucket_name).blob(path)
+    buf = io.BytesIO()
+    blob.download_to_file(buf)
+    return buf.getvalue()

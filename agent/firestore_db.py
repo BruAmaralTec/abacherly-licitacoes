@@ -110,3 +110,24 @@ def get_config_retencao_meses() -> int:
         return 6
     data = snap.to_dict() or {}
     return int(data.get("retencaoMesesAgente", 6))
+
+
+def listar_exemplos_treinamento() -> list[dict[str, Any]]:
+    """Lista os exemplos de análise (few-shot reference) cadastrados pelo admin.
+
+    Cada item tem: nome, descricao, arquivoPath (path no Firebase Storage),
+    enviadoPor, criadoEm. O agente baixa estes arquivos e injeta no prompt.
+    """
+    db = get_db()
+    docs = db.collection("exemplos_analise").stream()
+    out: list[dict[str, Any]] = []
+    for d in docs:
+        data = d.to_dict() or {}
+        out.append({
+            "id": d.id,
+            "nome": data.get("nome", ""),
+            "descricao": data.get("descricao", ""),
+            "arquivoPath": data.get("arquivoPath", ""),
+            "mimeType": data.get("mimeType", "application/octet-stream"),
+        })
+    return out

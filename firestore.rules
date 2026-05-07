@@ -2,11 +2,16 @@ rules_version = '2';
 
 // Regras Firestore — Abächerly Licitações
 //
-// Princípios:
-// - Equipe Abächerly (adm_geral / adm_tecnico / analista) acessa todos os clientes.
-// - Clientes só acessam seus próprios dados (clientId == seu clientId).
-// - Roles antigos mantidos como sinônimos (super_admin == adm_geral, admin == adm_tecnico, operator == analista)
-//   durante migração — remover quando todos os docs forem renomeados.
+// HIERARQUIA OFICIAL:
+//   adm_tecnico (topo)  - acesso total, incluindo configuracoes e treinamento do agente IA
+//   adm_geral           - tudo MENOS configuracoes e treinamento (gestor da Abacherly)
+//   analista            - operacoes basicas
+//   cliente             - apenas seus proprios dados
+//
+// Roles legados (retrocompat ate todos docs migrarem):
+//   super_admin -> adm_tecnico
+//   admin       -> adm_geral
+//   operator    -> analista
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -27,20 +32,28 @@ service cloud.firestore {
       return userDoc().clientId;
     }
 
-    function isAdmGeral() {
-      return isSignedIn() && (userRole() == 'adm_geral' || userRole() == 'super_admin');
+    // adm_tecnico = topo da hierarquia (inclui legado super_admin)
+    function isAdmTecnico() {
+      return isSignedIn() && (userRole() == 'adm_tecnico' || userRole() == 'super_admin');
     }
 
-    function isAdmTecnico() {
-      return isSignedIn() && (userRole() == 'adm_tecnico' || userRole() == 'admin' || isAdmGeral());
+    // adm_geral = gestor (inclui legado admin)
+    function isAdmGeral() {
+      return isSignedIn() && (userRole() == 'adm_geral' || userRole() == 'admin');
+    }
+
+    // Qualquer admin (tecnico ou geral) — gestao
+    function isAdmin() {
+      return isAdmTecnico() || isAdmGeral();
     }
 
     function isAnalista() {
-      return isSignedIn() && (userRole() == 'analista' || userRole() == 'operator' || isAdmTecnico());
+      return isSignedIn() && (userRole() == 'analista' || userRole() == 'operator');
     }
 
+    // Toda a equipe Abacherly (admins + analistas)
     function isEquipe() {
-      return isAdmGeral() || isAdmTecnico() || isAnalista();
+      return isAdmin() || isAnalista();
     }
 
     function isCliente() {
@@ -52,49 +65,48 @@ service cloud.firestore {
     }
 
     // ==================== USERS ====================
-    // Cada usuário lê seu próprio doc; equipe (adm) gerencia os demais
+    // Cada usuário lê seu próprio doc; admins gerenciam os demais
     match /users/{uid} {
-      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmTecnico());
-      allow create, update: if isAdmTecnico();
-      allow delete: if isAdmGeral();
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow create, update: if isAdmin();
+      allow delete: if isAdmTecnico();
     }
 
     // ==================== LICITAÇÕES ====================
     // Equipe lê/escreve todas; cliente só as suas
     match /licitacoes/{id} {
       allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
-      allow create: if isAnalista() || isOwnerOfClient(request.resource.data.clientId);
-      allow update: if isAnalista() || isOwnerOfClient(resource.data.clientId);
-      allow delete: if isAdmTecnico();
+      allow create: if isEquipe() || isOwnerOfClient(request.resource.data.clientId);
+      allow update: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow delete: if isAdmin();
     }
 
     // ==================== EVENTOS / AGENDA ====================
     match /eventos/{id} {
       allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
-      allow create: if isAnalista();
-      allow update, delete: if isAnalista();
+      allow create, update, delete: if isEquipe();
     }
 
     // ==================== CERTIDÕES ====================
     match /certidoes/{id} {
       allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
-      allow create, update: if isAnalista() || isOwnerOfClient(request.resource.data.clientId);
-      allow delete: if isAdmTecnico();
+      allow create, update: if isEquipe() || isOwnerOfClient(request.resource.data.clientId);
+      allow delete: if isAdmin();
     }
 
     // ==================== PAGAMENTOS ====================
     match /pagamentos/{id} {
       allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
-      allow create, update: if isAnalista();
-      allow delete: if isAdmTecnico();
+      allow create, update: if isEquipe();
+      allow delete: if isAdmin();
     }
 
     // ==================== SOLICITAÇÕES (cliente pede análise) ====================
     match /solicitacoes/{id} {
       allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
       allow create: if isCliente() && request.resource.data.clientId == userClientId();
-      allow update: if isAnalista() || isOwnerOfClient(resource.data.clientId);
-      allow delete: if isAdmTecnico();
+      allow update: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow delete: if isAdmin();
     }
 
     // ==================== DOCUMENTOS ====================
@@ -104,15 +116,15 @@ service cloud.firestore {
         isEquipe() ||
         (isCliente() && request.resource.data.clientId == userClientId())
       );
-      allow update: if isAnalista() || isOwnerOfClient(resource.data.clientId);
-      allow delete: if isAdmTecnico();
+      allow update: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow delete: if isAdmin();
     }
 
     // ==================== CLIENTES (info empresa) ====================
     match /clientes/{clientId} {
       allow read: if isEquipe() || isOwnerOfClient(clientId);
-      allow create, update: if isAdmTecnico() || isOwnerOfClient(clientId);
-      allow delete: if isAdmGeral();
+      allow create, update: if isAdmin() || isOwnerOfClient(clientId);
+      allow delete: if isAdmTecnico();
     }
 
     // ==================== RELATÓRIOS ====================
@@ -120,8 +132,8 @@ service cloud.firestore {
       allow read: if isEquipe() || (
         isOwnerOfClient(resource.data.clientId) && resource.data.liberadoParaCliente == true
       );
-      allow create, update: if isAnalista();
-      allow delete: if isAdmTecnico();
+      allow create, update: if isEquipe();
+      allow delete: if isAdmin();
     }
 
     // ==================== ANÁLISES IA (agente) ====================
@@ -130,15 +142,22 @@ service cloud.firestore {
       allow read: if isEquipe() || (
         isOwnerOfClient(resource.data.clientId) && resource.data.liberadoParaCliente == true
       );
-      allow create, update: if isAnalista();
-      allow delete: if isAdmTecnico();
+      allow create, update: if isEquipe();
+      allow delete: if isAdmin();
     }
 
     // ==================== CONFIGURAÇÕES SISTEMA ====================
-    // Inclui retenção do agente IA (configurável)
+    // Acesso restrito ao adm_tecnico (configs gerais + retencao do agente IA)
     match /configuracoes/{id} {
       allow read: if isEquipe();
-      allow write: if isAdmGeral();
+      allow write: if isAdmTecnico();
+    }
+
+    // ==================== EXEMPLOS DE ANÁLISE (treino do agente IA) ====================
+    // Apenas adm_tecnico — treinamento do agente é exclusivo do tecnico
+    match /exemplos_analise/{id} {
+      allow read: if isEquipe();
+      allow create, update, delete: if isAdmTecnico();
     }
   }
 }

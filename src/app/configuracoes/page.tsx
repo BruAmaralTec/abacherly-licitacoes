@@ -22,7 +22,7 @@ import { buscarConfig, salvarConfig, ConfigSistema } from '@/lib/services/config
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
-  const { user, userProfile, loading, isAdmGeral } = useAuth();
+  const { user, userProfile, loading, isAdmTecnico } = useAuth();
 
   const [config, setConfig] = useState({
     notificacoes: {
@@ -51,17 +51,17 @@ export default function ConfiguracoesPage() {
       router.push('/login');
     }
     // Apenas Adm. Geral pode acessar
-    if (!loading && user && !isAdmGeral) {
+    if (!loading && user && !isAdmTecnico) {
       router.push('/dashboard');
     }
-  }, [user, loading, router, isAdmGeral]);
+  }, [user, loading, router, isAdmTecnico]);
 
   useEffect(() => {
     if (!user) return;
     buscarConfig().then(setAgente).catch(console.error);
   }, [user]);
 
-  if (loading || !user || !isAdmGeral) {
+  if (loading || !user || !isAdmTecnico) {
     return (
       <div className="min-h-screen w-full bg-[#f8fafc]">
         <Sidebar />

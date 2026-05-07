@@ -13,11 +13,14 @@ from vertexai.generative_models import (
 )
 
 from config import GCP_PROJECT, GCP_LOCATION, GEMINI_MODEL
+from firestore_db import listar_exemplos_treinamento
 from prompts import EXTRACT_SCHEMA, SYSTEM_INSTRUCTION, USER_PROMPT
+from storage_gcs import baixar_de_firebase_storage
 
 logger = logging.getLogger(__name__)
 
 _initialized = False
+_exemplos_cache: list[Part] | None = None
 
 
 def _ensure_init() -> None:
@@ -25,6 +28,37 @@ def _ensure_init() -> None:
     if not _initialized:
         vertex_init(project=GCP_PROJECT, location=GCP_LOCATION)
         _initialized = True
+
+
+def _carregar_exemplos() -> list[Part]:
+    """Carrega exemplos de análise como Parts do Gemini (few-shot reference).
+
+    Cache em processo — exemplos não mudam durante uma execução do container.
+    Re-deploy do Cloud Run força recarga.
+    """
+    global _exemplos_cache
+    if _exemplos_cache is not None:
+        return _exemplos_cache
+
+    parts: list[Part] = []
+    try:
+        exemplos = listar_exemplos_treinamento()
+        for ex in exemplos:
+            path = ex.get("arquivoPath", "")
+            if not path:
+                continue
+            try:
+                conteudo = baixar_de_firebase_storage(path)
+                parts.append(Part.from_data(data=conteudo, mime_type=ex.get("mimeType", "application/pdf")))
+                logger.info("exemplo carregado: %s (%d bytes)", ex.get("nome"), len(conteudo))
+            except Exception as exc:
+                logger.warning("falha ao carregar exemplo %s: %s", ex.get("nome"), exc)
+    except Exception as exc:
+        logger.warning("nao foi possivel listar exemplos de treinamento: %s", exc)
+
+    _exemplos_cache = parts
+    logger.info("total de exemplos carregados: %d", len(parts))
+    return parts
 
 
 def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
@@ -35,12 +69,24 @@ def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
     """
     _ensure_init()
 
+    exemplos_parts = _carregar_exemplos()
+
+    system = SYSTEM_INSTRUCTION
+    if exemplos_parts:
+        system = (
+            SYSTEM_INSTRUCTION
+            + "\n\nIMPORTANTE: Os primeiros documentos anexados a esta conversa são EXEMPLOS de "
+            "análises completas previamente feitas pela equipe Abächerly. Use-os como REFERÊNCIA "
+            "de formato, profundidade e estilo das respostas. Os documentos seguintes (após a "
+            "instrução de usuário) são o EDITAL real que você deve analisar agora."
+        )
+
     model = GenerativeModel(
         model_name=GEMINI_MODEL,
-        system_instruction=SYSTEM_INSTRUCTION,
+        system_instruction=system,
     )
 
-    parts: list[Part] = []
+    parts: list[Part] = list(exemplos_parts)
     for nome, conteudo, mime in arquivos:
         try:
             parts.append(Part.from_data(data=conteudo, mime_type=mime))

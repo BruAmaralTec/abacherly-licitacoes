@@ -58,5 +58,11 @@ service firebase.storage {
       allow read: if isEquipe();
       allow write: if isEquipe();
     }
+
+    // Arquivos de treino do agente (exemplos de análise)
+    match /agente-treinamento/{file=**} {
+      allow read: if isEquipe();
+      allow write: if isEquipe();
+    }
   }
 }

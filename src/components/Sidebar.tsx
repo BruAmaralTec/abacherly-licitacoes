@@ -40,10 +40,11 @@ interface NavItem {
   dividerBefore?: boolean;
 }
 
-const EQUIPE: RoleAcesso[] = ['adm_geral', 'adm_tecnico', 'analista', 'super_admin', 'admin', 'operator'];
-const ADM_TECNICO_OU_GERAL: RoleAcesso[] = ['adm_geral', 'adm_tecnico', 'super_admin', 'admin'];
-const SO_ADM_GERAL: RoleAcesso[] = ['adm_geral', 'super_admin'];
-const TODOS: RoleAcesso[] = [...EQUIPE, 'cliente'];
+// HIERARQUIA: adm_tecnico (topo) > adm_geral > analista
+// Legados: super_admin -> adm_tecnico, admin -> adm_geral, operator -> analista
+const EQUIPE: RoleAcesso[] = ['adm_tecnico', 'adm_geral', 'analista', 'super_admin', 'admin', 'operator'];
+const ADMIN: RoleAcesso[] = ['adm_tecnico', 'adm_geral', 'super_admin', 'admin']; // gestores
+const SO_TECNICO: RoleAcesso[] = ['adm_tecnico', 'super_admin']; // só técnico (configs + treinamento)
 const SO_CLIENTE: RoleAcesso[] = ['cliente'];
 
 const navItems: NavItem[] = [
@@ -70,7 +71,7 @@ const navItems: NavItem[] = [
     name: 'Nova Licitação',
     href: '/licitacoes/nova',
     icon: Plus,
-    roles: ADM_TECNICO_OU_GERAL,
+    roles: ADMIN,
   },
   {
     name: 'Agenda',
@@ -91,35 +92,41 @@ const navItems: NavItem[] = [
     roles: EQUIPE,
   },
   {
+    name: 'Treinar Agente IA',
+    href: '/equipe/admin/treinamento-agente',
+    icon: Sparkles,
+    roles: SO_TECNICO,
+    dividerBefore: true,
+  },
+  {
     name: 'Painel Solicitações',
     href: '/admin/solicitacoes',
     icon: LayoutList,
-    roles: ADM_TECNICO_OU_GERAL,
-    dividerBefore: true,
+    roles: ADMIN,
   },
   {
     name: 'Validar Documentos',
     href: '/admin/documentos',
     icon: FileCheck2,
-    roles: ADM_TECNICO_OU_GERAL,
+    roles: ADMIN,
   },
   {
     name: 'Info Clientes',
     href: '/admin/clientes',
     icon: Building2,
-    roles: ADM_TECNICO_OU_GERAL,
+    roles: ADMIN,
   },
   {
     name: 'Usuários',
     href: '/usuarios',
     icon: Users,
-    roles: ADM_TECNICO_OU_GERAL,
+    roles: ADMIN,
   },
   {
     name: 'Configurações',
     href: '/configuracoes',
     icon: Settings,
-    roles: SO_ADM_GERAL,
+    roles: SO_TECNICO,
   },
 
   // ==================== CLIENTE ====================
@@ -195,8 +202,8 @@ export default function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="font-bold truncate text-sm lg:text-base">{userProfile?.name || 'Usuário'}</p>
             <p className="text-xs text-white/60 truncate">
-              {(userProfile?.role === 'adm_geral' || userProfile?.role === 'super_admin') && 'Adm. Geral'}
-              {(userProfile?.role === 'adm_tecnico' || userProfile?.role === 'admin') && 'Adm. Técnico'}
+              {(userProfile?.role === 'adm_tecnico' || userProfile?.role === 'super_admin') && 'Adm. Técnico'}
+              {(userProfile?.role === 'adm_geral' || userProfile?.role === 'admin') && 'Adm. Geral'}
               {(userProfile?.role === 'analista' || userProfile?.role === 'operator') && 'Analista'}
               {userProfile?.role === 'cliente' && 'Cliente'}
             </p>

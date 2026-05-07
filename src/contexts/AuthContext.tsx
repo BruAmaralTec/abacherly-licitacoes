@@ -35,10 +35,21 @@ export interface UserProfile {
 }
 
 // Mapeia roles legados para os novos sem alterar dados em runtime
+//
+// HIERARQUIA OFICIAL (definida pelo dono do sistema):
+//   adm_tecnico  : nivel mais alto, TUDO (incl. treinamento agente IA + configuracoes)
+//   adm_geral    : tudo MENOS treinamento e configuracoes (gestor da Abacherly)
+//   analista     : operacoes basicas de licitacao
+//   cliente      : apenas seus proprios dados
+//
+// Mapeamento de roles legados:
+//   super_admin -> adm_tecnico  (era o root original = mantem acesso total)
+//   admin       -> adm_geral    (gestor sem permissao de config)
+//   operator    -> analista
 function normalizarRole(role: string | undefined): UserRole {
   switch (role) {
-    case 'super_admin': return 'adm_geral';
-    case 'admin': return 'adm_tecnico';
+    case 'super_admin': return 'adm_tecnico';
+    case 'admin': return 'adm_geral';
     case 'operator': return 'analista';
     case 'adm_geral':
     case 'adm_tecnico':
@@ -57,15 +68,20 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  // Flags por role (já normalizadas)
-  isAdmGeral: boolean;
-  isAdmTecnico: boolean;
-  isAnalista: boolean;
-  isCliente: boolean;
-  isEquipe: boolean;
-  // Aliases legados (mantidos para não quebrar telas antigas durante migração)
+
+  // Flags exatas (cada uma == um role específico)
+  isAdmTecnico: boolean;  // topo da hierarquia (acesso total, inclui config + treinamento)
+  isAdmGeral: boolean;    // gestor (tudo menos config + treinamento)
+  isAnalista: boolean;    // operações básicas
+  isCliente: boolean;     // só seus dados
+
+  // Flags compostas para checks de permissão
+  isEquipe: boolean;            // qualquer membro da equipe Abacherly
+  isAdmin: boolean;             // adm_tecnico OU adm_geral (gestores)
+  podeConfigurar: boolean;      // só adm_tecnico (configs + treinamento agente)
+
+  // Aliases legados (telas antigas)
   isSuperAdmin: boolean;
-  isAdmin: boolean;
   isOperator: boolean;
 }
 
@@ -171,15 +187,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth, email);
   };
 
+  // userProfile.role já vem normalizado por normalizarRole() (legados convertidos)
   const role = userProfile?.role;
-  const isAdmGeral = role === 'adm_geral' || role === 'super_admin';
-  const isAdmTecnico = role === 'adm_tecnico' || role === 'admin' || isAdmGeral;
-  const isAnalista = role === 'analista' || role === 'operator' || isAdmTecnico;
+  const isAdmTecnico = role === 'adm_tecnico';
+  const isAdmGeral = role === 'adm_geral';
+  const isAnalista = role === 'analista';
   const isCliente = role === 'cliente';
-  const isEquipe = isAdmGeral || isAdmTecnico || isAnalista;
-  // Aliases legados — apontam para os mesmos novos perfis
-  const isSuperAdmin = isAdmGeral;
-  const isAdmin = isAdmTecnico;
+
+  const isAdmin = isAdmTecnico || isAdmGeral;
+  const isEquipe = isAdmin || isAnalista;
+  const podeConfigurar = isAdmTecnico; // só técnico mexe em config + treinamento
+
+  // Aliases legados (mantidos para não quebrar telas que ainda referenciam)
+  const isSuperAdmin = isAdmTecnico;
   const isOperator = isAnalista;
 
   const value = useMemo(() => ({
@@ -189,15 +209,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     resetPassword,
-    isAdmGeral,
     isAdmTecnico,
+    isAdmGeral,
     isAnalista,
     isCliente,
     isEquipe,
-    isSuperAdmin,
     isAdmin,
+    podeConfigurar,
+    isSuperAdmin,
     isOperator,
-  }), [user, userProfile, loading, isAdmGeral, isAdmTecnico, isAnalista, isCliente, isEquipe]);
+  }), [user, userProfile, loading, isAdmTecnico, isAdmGeral, isAnalista, isCliente, isEquipe, isAdmin, podeConfigurar]);
 
   return (
     <AuthContext.Provider value={value}>

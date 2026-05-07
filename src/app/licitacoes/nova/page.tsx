@@ -4,15 +4,14 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
-  Search,
   FileText,
   Calendar,
   Building2,
   DollarSign,
-  Clock,
   CheckCircle,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23,7 +22,18 @@ import Link from 'next/link';
 import { criarLicitacao } from '@/lib/services/licitacoes';
 import { criarEvento } from '@/lib/services/eventos';
 import { processarSolicitacao } from '@/lib/services/solicitacoes';
-import { buscarEdital, buscarEditalPorUrl, isConlicitacaoConfigurado, DadosEdital } from '@/lib/services/conlicitacao';
+import { listarClientes } from '@/lib/services/clientes';
+import { ClienteInfo, Modalidade } from '@/lib/types';
+
+const MODALIDADES: Modalidade[] = [
+  'Pregão Eletrônico',
+  'Pregão Presencial',
+  'Concorrência',
+  'Tomada de Preços',
+  'Convite',
+  'Dispensa',
+  'Inexigibilidade',
+];
 
 export default function NovaLicitacaoPage() {
   return (
@@ -45,161 +55,122 @@ export default function NovaLicitacaoPage() {
 function NovaLicitacaoContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, userProfile, loading, isAdmin } = useAuth();
+  const { user, userProfile, loading, isAdmin, isEquipe } = useAuth();
 
   const solicitacaoId = searchParams.get('solicitacaoId') || '';
-  const [numeroEdital, setNumeroEdital] = useState(searchParams.get('numero') || '');
-  const [uasg, setUasg] = useState(searchParams.get('uasg') || '');
-  const [buscando, setBuscando] = useState(false);
-  const [resultados, setResultados] = useState<DadosEdital[]>([]);
-  const [dadosLicitacao, setDadosLicitacao] = useState<any>(null);
-  const [erro, setErro] = useState('');
-  const [salvando, setSalvando] = useState(false);
-  const [etapas, setEtapas] = useState({
-    coleta: 'pendente',
-    analise: 'pendente',
-    certidoes: 'pendente',
-    agenda: 'pendente'
+
+  const [clientes, setClientes] = useState<ClienteInfo[]>([]);
+  const [clienteId, setClienteId] = useState<string>(userProfile?.clientId || '');
+  const [form, setForm] = useState({
+    numero: searchParams.get('numero') || '',
+    codigoConlicitacao: '',
+    uasg: searchParams.get('uasg') || '',
+    objeto: '',
+    orgao: '',
+    modalidade: 'Pregão Eletrônico' as string,
+    valorEstimado: '',
+    dataCertame: '',
+    horaCertame: '',
+    prazoEntrega: '',
+    localEntrega: '',
+    resumo: '',
   });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
-    if (!loading && user && !isAdmin) {
-      router.push('/solicitacoes');
+    if (!loading && user && !isEquipe) {
+      router.push('/dashboard');
     }
-  }, [user, loading, router, isAdmin]);
+  }, [user, loading, router, isEquipe]);
 
-  const handleBuscar = async () => {
-    if (!numeroEdital.trim()) {
-      setErro('Digite o número do edital ou termo de busca');
+  useEffect(() => {
+    async function carregarClientes() {
+      if (!isAdmin) return;
+      try {
+        const lista = await listarClientes();
+        setClientes(lista);
+        if (!clienteId && lista.length === 1 && lista[0].id) {
+          setClienteId(lista[0].id);
+        }
+      } catch (e) {
+        console.error('Erro listando clientes:', e);
+      }
+    }
+    if (userProfile) carregarClientes();
+  }, [userProfile, isAdmin]);
+
+  function atualizar<K extends keyof typeof form>(campo: K, valor: typeof form[K]) {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+  }
+
+  async function handleSalvar() {
+    setErro('');
+    if (!clienteId) {
+      setErro('Selecione o cliente.');
       return;
     }
-
-    setErro('');
-    setBuscando(true);
-    setDadosLicitacao(null);
-    setResultados([]);
-
-    try {
-      setEtapas({ coleta: 'processando', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
-
-      const isUrl = numeroEdital.startsWith('http');
-      const dados = isUrl
-        ? await buscarEditalPorUrl(numeroEdital)
-        : await buscarEdital(numeroEdital, uasg.trim() || undefined);
-
-      setEtapas({ coleta: 'concluido', analise: 'processando', certidoes: 'pendente', agenda: 'pendente' });
-
-      if (dados.length === 0) {
-        setErro('Nenhuma licitação encontrada. Tente outros termos de busca.');
-        setEtapas({ coleta: 'concluido', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
-        setBuscando(false);
-        return;
-      }
-
-      if (dados.length === 1) {
-        // Resultado único — seleciona automaticamente
-        selecionarResultado(dados[0]);
-      } else {
-        // Múltiplos resultados — mostrar lista para o usuário escolher
-        setResultados(dados);
-        setEtapas({ coleta: 'concluido', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
-      }
-    } catch (error: any) {
-      setErro(error.message || 'Erro ao buscar dados da licitação');
-      setEtapas({ coleta: 'pendente', analise: 'pendente', certidoes: 'pendente', agenda: 'pendente' });
-    } finally {
-      setBuscando(false);
+    if (!form.numero.trim() || !form.objeto.trim() || !form.orgao.trim()) {
+      setErro('Preencha número, objeto e órgão (obrigatórios).');
+      return;
     }
-  };
-
-  const selecionarResultado = (dados: DadosEdital) => {
-    setResultados([]);
-    setEtapas({ coleta: 'concluido', analise: 'concluido', certidoes: 'concluido', agenda: 'concluido' });
-
-    setDadosLicitacao({
-      numero: dados.numero,
-      objeto: dados.objeto,
-      orgao: dados.orgao,
-      modalidade: dados.modalidade,
-      valor: dados.valorEstimado,
-      dataCertame: dados.dataCertame,
-      horaCertame: dados.horaCertame,
-      prazoEntrega: dados.prazoEntrega,
-      localEntrega: dados.localEntrega,
-      urlConlicitacao: dados.linkSistemaOrigem || '',
-      numeroControlePNCP: dados.numeroControlePNCP || '',
-      fonte: dados.fonte,
-      resumo: `${dados.modalidade} - ${dados.orgao}. ${dados.objeto}`,
-      certidoesStatus: {
-        cnd_federal: 'pendente',
-        fgts: 'pendente',
-        cndt: 'pendente',
-        estadual: 'pendente',
-        municipal: 'pendente'
-      }
-    });
-  };
-
-  const handleSalvar = async () => {
-    if (!dadosLicitacao || !userProfile?.clientId || !user) return;
+    if (!user) return;
 
     setSalvando(true);
     try {
+      const dataCertame = form.dataCertame ? new Date(form.dataCertame) : new Date();
+
       const licitacaoId = await criarLicitacao({
-        numero: dadosLicitacao.numero,
-        objeto: dadosLicitacao.objeto,
-        orgao: dadosLicitacao.orgao,
-        modalidade: dadosLicitacao.modalidade,
-        valorEstimado: dadosLicitacao.valor,
-        dataCertame: Timestamp.fromDate(new Date(dadosLicitacao.dataCertame)),
-        horaCertame: dadosLicitacao.horaCertame,
-        prazoEntrega: dadosLicitacao.prazoEntrega,
-        localEntrega: dadosLicitacao.localEntrega || '',
+        numero: form.numero.trim(),
+        objeto: form.objeto.trim(),
+        orgao: form.orgao.trim(),
+        modalidade: form.modalidade,
+        valorEstimado: parseFloat(form.valorEstimado) || 0,
+        dataCertame: Timestamp.fromDate(dataCertame),
+        horaCertame: form.horaCertame || '',
+        prazoEntrega: form.prazoEntrega || '',
+        localEntrega: form.localEntrega || '',
         status: 'em_analise',
-        resumoIA: dadosLicitacao.resumo || '',
-        urlConlicitacao: dadosLicitacao.urlConlicitacao || '',
-        numeroControlePNCP: dadosLicitacao.numeroControlePNCP || '',
-        linkSistemaOrigem: dadosLicitacao.urlConlicitacao || '',
-        modoDisputa: dadosLicitacao.modoDisputa || '',
-        clientId: userProfile.clientId,
+        resumoIA: form.resumo || '',
+        codigoPNCP: '',
+        urlConlicitacao: '',
+        clientId: clienteId,
         criadoPor: user.uid,
       });
 
-      // Criar evento de sessão pública automaticamente
-      if (dadosLicitacao.dataCertame && dadosLicitacao.horaCertame) {
-        const [hora, minuto] = dadosLicitacao.horaCertame.split(':');
-        const dataCertame = new Date(dadosLicitacao.dataCertame);
-        dataCertame.setHours(parseInt(hora), parseInt(minuto));
-
+      // Evento de sessão pública
+      if (form.dataCertame && form.horaCertame) {
+        const [hora, minuto] = form.horaCertame.split(':');
+        const dt = new Date(form.dataCertame);
+        dt.setHours(parseInt(hora || '0'), parseInt(minuto || '0'));
         await criarEvento({
-          titulo: `Sessão Pública - ${dadosLicitacao.numero}`,
-          descricao: `${dadosLicitacao.modalidade} - ${dadosLicitacao.orgao}`,
+          titulo: `Sessão Pública - ${form.numero}`,
+          descricao: `${form.modalidade} - ${form.orgao}`,
           tipo: 'sessao_publica',
-          dataHora: Timestamp.fromDate(dataCertame),
+          dataHora: Timestamp.fromDate(dt),
           licitacaoId,
-          licitacaoNumero: dadosLicitacao.numero,
+          licitacaoNumero: form.numero,
           urgente: false,
           concluido: false,
-          clientId: userProfile.clientId,
+          clientId: clienteId,
           criadoPor: user.uid,
         });
       }
 
-      // Se veio de uma solicitação, marcar como processada
-      if (solicitacaoId && user) {
+      if (solicitacaoId) {
         await processarSolicitacao(solicitacaoId, user.uid, licitacaoId);
       }
 
       router.push(`/licitacoes/${licitacaoId}/analise`);
-    } catch (error: any) {
-      setErro(error.message || 'Erro ao salvar licitação');
+    } catch (e: any) {
+      setErro(e?.message || 'Erro ao salvar licitação');
     } finally {
       setSalvando(false);
     }
-  };
+  }
 
   if (loading || !user) {
     return (
@@ -214,321 +185,202 @@ function NovaLicitacaoContent() {
     );
   }
 
-  const getEtapaIcon = (status: string) => {
-    switch (status) {
-      case 'processando':
-        return <Loader2 className="w-5 h-5 text-[#4674e8] animate-spin" />;
-      case 'concluido':
-        return <CheckCircle className="w-5 h-5 text-green-500" />;
-      default:
-        return <Clock className="w-5 h-5 text-gray-300" />;
-    }
-  };
-
   return (
     <div className="min-h-screen w-full bg-[#f8fafc]">
       <Sidebar />
-
       <div className="w-full lg:pl-64 min-h-screen flex flex-col">
         <main className="flex-1 w-full p-4 sm:p-6 lg:p-8">
-          {/* Header */}
           <div className="flex items-center gap-4 mb-6">
-            <Link
-              href="/licitacoes"
-              className="p-2 hover:bg-white rounded-lg transition-colors"
-            >
+            <Link href="/equipe/licitacoes" className="p-2 hover:bg-white rounded-lg transition-colors">
               <ArrowLeft className="w-5 h-5 text-[#1a2b45]" />
             </Link>
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-[#2c4a70]">Nova Licitação</h1>
               <p className="text-sm lg:text-base text-[#1a2b45]/60 mt-1">
-                Busque e processe uma nova licitação
+                Cadastre manualmente ou use o Agente IA para extrair dos arquivos do edital.
               </p>
             </div>
           </div>
 
-          {/* Busca */}
-          <div className="card p-4 sm:p-6 mb-6">
-            <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Buscar Licitação</h2>
-
-            <div className="flex flex-col sm:flex-row gap-4">
+          {/* Sugestão Agente IA */}
+          <div className="card p-4 mb-6 border-l-4 border-[#4674e8] bg-[#4674e8]/5">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-[#4674e8] flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <label className="block text-sm font-medium text-[#1a2b45] mb-2">
-                  Número do Edital / Código PNCP / URL Conlicitação
-                </label>
-                <input
-                  type="text"
-                  value={numeroEdital}
-                  onChange={(e) => setNumeroEdital(e.target.value)}
-                  placeholder="Ex: 65/2025 ou cole o link completo"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-[#4674e8] focus:ring-2 focus:ring-[#4674e8]/20 transition-all"
-                  disabled={buscando}
-                  onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
-                />
+                <p className="font-bold text-[#2c4a70]">Tem o PDF do edital?</p>
+                <p className="text-sm text-[#1a2b45]/70">
+                  O Agente IA extrai os dados automaticamente e já preenche tudo, incluindo a análise técnica.
+                </p>
               </div>
-              <div className="w-full sm:w-48">
-                <label className="block text-sm font-medium text-[#1a2b45] mb-2">
-                  UASG
-                </label>
-                <input
-                  type="text"
-                  value={uasg}
-                  onChange={(e) => setUasg(e.target.value)}
-                  placeholder="Ex: 160199"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:border-[#4674e8] focus:ring-2 focus:ring-[#4674e8]/20 transition-all"
-                  disabled={buscando}
-                  onKeyDown={(e) => e.key === 'Enter' && handleBuscar()}
-                />
-              </div>
-              <div className="sm:self-end">
-                <button
-                  onClick={handleBuscar}
-                  disabled={buscando}
-                  className="w-full sm:w-auto btn-primary flex items-center justify-center gap-2 py-3 px-6"
-                >
-                  {buscando ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Processando...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="w-5 h-5" />
-                      Buscar e Processar
-                    </>
-                  )}
-                </button>
-              </div>
+              <Link
+                href="/equipe/agente-analise"
+                className="btn-primary text-sm flex items-center gap-2 flex-shrink-0"
+              >
+                Usar Agente IA
+              </Link>
             </div>
+          </div>
 
-            <div className="mt-4 flex items-center gap-2 text-sm bg-blue-50 text-blue-700 p-3 rounded-lg">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              {isConlicitacaoConfigurado()
-                ? 'Buscando via Conlicitação + PNCP (gov.br)'
-                : 'Buscando via PNCP - Portal Nacional de Contratações Públicas (gov.br)'}
+          {/* Formulário manual */}
+          <div className="card p-4 sm:p-6 mb-6">
+            <h2 className="text-lg font-bold text-[#2c4a70] mb-4 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-[#4674e8]" />
+              Cadastro Manual
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {isAdmin && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-[#1a2b45] mb-1">Cliente *</label>
+                  <select value={clienteId} onChange={(e) => setClienteId(e.target.value)} className="w-full">
+                    <option value="">Selecione...</option>
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.razaoSocial || c.nomeFantasia || c.cnpj}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Número do Edital *</label>
+                <input
+                  type="text"
+                  value={form.numero}
+                  onChange={(e) => atualizar('numero', e.target.value)}
+                  placeholder="Ex: 65/2025"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Cód. Conlicitação</label>
+                <input
+                  type="text"
+                  value={form.codigoConlicitacao}
+                  onChange={(e) => atualizar('codigoConlicitacao', e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">UASG</label>
+                <input
+                  type="text"
+                  value={form.uasg}
+                  onChange={(e) => atualizar('uasg', e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Modalidade</label>
+                <select value={form.modalidade} onChange={(e) => atualizar('modalidade', e.target.value)}>
+                  {MODALIDADES.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1 flex items-center gap-1">
+                  <Building2 className="w-4 h-4" /> Órgão *
+                </label>
+                <input
+                  type="text"
+                  value={form.orgao}
+                  onChange={(e) => atualizar('orgao', e.target.value)}
+                  placeholder="Nome do órgão licitante"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Objeto *</label>
+                <textarea
+                  value={form.objeto}
+                  onChange={(e) => atualizar('objeto', e.target.value)}
+                  rows={3}
+                  placeholder="Descrição do objeto da licitação"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1 flex items-center gap-1">
+                  <DollarSign className="w-4 h-4" /> Valor Estimado (R$)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.valorEstimado}
+                  onChange={(e) => atualizar('valorEstimado', e.target.value)}
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1 flex items-center gap-1">
+                  <Calendar className="w-4 h-4" /> Data do Certame
+                </label>
+                <input
+                  type="date"
+                  value={form.dataCertame}
+                  onChange={(e) => atualizar('dataCertame', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Hora do Certame</label>
+                <input
+                  type="time"
+                  value={form.horaCertame}
+                  onChange={(e) => atualizar('horaCertame', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Prazo de Entrega</label>
+                <input
+                  type="text"
+                  value={form.prazoEntrega}
+                  onChange={(e) => atualizar('prazoEntrega', e.target.value)}
+                  placeholder="Ex: 30 dias após assinatura"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Local de Entrega</label>
+                <input
+                  type="text"
+                  value={form.localEntrega}
+                  onChange={(e) => atualizar('localEntrega', e.target.value)}
+                  placeholder="Endereço ou cidade"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-[#1a2b45] mb-1">Resumo (opcional)</label>
+                <textarea
+                  value={form.resumo}
+                  onChange={(e) => atualizar('resumo', e.target.value)}
+                  rows={2}
+                  placeholder="Resumo curto do objetivo da licitação"
+                />
+              </div>
             </div>
 
             {erro && (
-              <div className="mt-4 flex items-center gap-2 text-red-600 text-sm">
+              <div className="mt-4 flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
                 <AlertCircle className="w-4 h-4" />
                 {erro}
               </div>
             )}
           </div>
 
-          {/* Etapas de Processamento */}
-          {(buscando || dadosLicitacao) && (
-            <div className="card p-4 sm:p-6 mb-6">
-              <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Processamento</h2>
-
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className={`p-4 rounded-lg border-2 transition-all ${etapas.coleta === 'concluido' ? 'border-green-200 bg-green-50' : etapas.coleta === 'processando' ? 'border-[#4674e8] bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {getEtapaIcon(etapas.coleta)}
-                    <span className="font-bold text-sm text-[#1a2b45]">Coleta</span>
-                  </div>
-                  <p className="text-xs text-[#1a2b45]/60">Dados do edital</p>
-                </div>
-
-                <div className={`p-4 rounded-lg border-2 transition-all ${etapas.analise === 'concluido' ? 'border-green-200 bg-green-50' : etapas.analise === 'processando' ? 'border-[#4674e8] bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {getEtapaIcon(etapas.analise)}
-                    <span className="font-bold text-sm text-[#1a2b45]">Análise</span>
-                  </div>
-                  <p className="text-xs text-[#1a2b45]/60">Resumo gerado</p>
-                </div>
-
-                <div className={`p-4 rounded-lg border-2 transition-all ${etapas.certidoes === 'concluido' ? 'border-green-200 bg-green-50' : etapas.certidoes === 'processando' ? 'border-[#4674e8] bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {getEtapaIcon(etapas.certidoes)}
-                    <span className="font-bold text-sm text-[#1a2b45]">Certidões</span>
-                  </div>
-                  <p className="text-xs text-[#1a2b45]/60">Verificadas</p>
-                </div>
-
-                <div className={`p-4 rounded-lg border-2 transition-all ${etapas.agenda === 'concluido' ? 'border-green-200 bg-green-50' : etapas.agenda === 'processando' ? 'border-[#4674e8] bg-blue-50' : 'border-gray-100 bg-gray-50'}`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {getEtapaIcon(etapas.agenda)}
-                    <span className="font-bold text-sm text-[#1a2b45]">Agenda</span>
-                  </div>
-                  <p className="text-xs text-[#1a2b45]/60">Eventos criados</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Resultados da Busca */}
-          {resultados.length > 1 && (
-            <div className="card p-4 sm:p-6 mb-6">
-              <h2 className="text-lg font-bold text-[#2c4a70] mb-2">
-                Resultados Encontrados ({resultados.length})
-              </h2>
-              <p className="text-sm text-[#1a2b45]/60 mb-4">
-                Selecione a licitação desejada:
-              </p>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {resultados.map((r, i) => (
-                  <button
-                    key={i}
-                    onClick={() => selecionarResultado(r)}
-                    className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-[#4674e8] hover:bg-blue-50/50 transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-[#2c4a70]">#{r.numero}</span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-[#1a2b45]/60">
-                            {r.modalidade}
-                          </span>
-                          <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-700">
-                            {r.fonte === 'pncp' ? 'PNCP' : 'Conlicitação'}
-                          </span>
-                        </div>
-                        <p className="text-sm text-[#1a2b45] line-clamp-2">{r.objeto}</p>
-                        <p className="text-xs text-[#1a2b45]/60 mt-1">
-                          {r.orgao}
-                          {r.codigoUnidade && <span className="ml-2 text-[#1a2b45]/40">(UASG: {r.codigoUnidade})</span>}
-                        </p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="font-bold text-[#2c4a70]">
-                          {r.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </p>
-                        <p className="text-xs text-[#1a2b45]/60">
-                          {new Date(r.dataCertame).toLocaleDateString('pt-BR')}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Dados da Licitação */}
-          {dadosLicitacao && (
-            <div className="space-y-6">
-              {/* Informações Gerais */}
-              <div className="card p-4 sm:p-6">
-                <h2 className="text-lg font-bold text-[#2c4a70] mb-4 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#4674e8]" />
-                  Dados da Licitação
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1">Número</label>
-                    <p className="font-bold text-[#2c4a70]">{dadosLicitacao.numero}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1">Modalidade</label>
-                    <p className="font-bold text-[#2c4a70]">{dadosLicitacao.modalidade}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1">Objeto</label>
-                    <p className="text-[#1a2b45]">{dadosLicitacao.objeto}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1 flex items-center gap-1">
-                      <Building2 className="w-4 h-4" /> Órgão
-                    </label>
-                    <p className="text-[#1a2b45]">{dadosLicitacao.orgao}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1 flex items-center gap-1">
-                      <DollarSign className="w-4 h-4" /> Valor Estimado
-                    </label>
-                    <p className="font-bold text-[#2c4a70] text-lg">
-                      {dadosLicitacao.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1 flex items-center gap-1">
-                      <Calendar className="w-4 h-4" /> Data do Certame
-                    </label>
-                    <p className="text-[#1a2b45]">
-                      {new Date(dadosLicitacao.dataCertame).toLocaleDateString('pt-BR')} às {dadosLicitacao.horaCertame}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-[#1a2b45]/60 mb-1">Prazo de Entrega</label>
-                    <p className="text-[#1a2b45]">{dadosLicitacao.prazoEntrega}</p>
-                  </div>
-                </div>
-
-                {dadosLicitacao.resumo && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    <label className="block text-sm text-[#1a2b45]/60 mb-2">Resumo (gerado por IA)</label>
-                    <p className="text-sm text-[#1a2b45] bg-gray-50 p-4 rounded-lg">
-                      {dadosLicitacao.resumo}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Status das Certidões */}
-              {dadosLicitacao.certidoesStatus && (
-                <div className="card p-4 sm:p-6">
-                  <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Status das Certidões</h2>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                    {Object.entries(dadosLicitacao.certidoesStatus).map(([key, status]) => (
-                      <div
-                        key={key}
-                        className={`p-3 rounded-lg text-center ${
-                          status === 'valida' ? 'bg-green-50' :
-                          status === 'vencendo' ? 'bg-amber-50' :
-                          'bg-red-50'
-                        }`}
-                      >
-                        <p className="text-xs font-bold text-[#1a2b45] uppercase mb-1">
-                          {key.replace(/_/g, ' ')}
-                        </p>
-                        <span className={`text-xs font-bold ${
-                          status === 'valida' ? 'text-green-600' :
-                          status === 'vencendo' ? 'text-amber-600' :
-                          'text-red-600'
-                        }`}>
-                          {status === 'valida' ? 'Válida' :
-                           status === 'vencendo' ? 'Vencendo' :
-                           'Pendente'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          <div className="flex flex-col sm:flex-row gap-3 justify-end">
+            <Link href="/equipe/licitacoes" className="btn-secondary text-center">Cancelar</Link>
+            <button
+              onClick={handleSalvar}
+              disabled={salvando}
+              className="btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {salvando ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Salvando...</>
+              ) : (
+                <><CheckCircle className="w-5 h-5" /> Salvar Licitação</>
               )}
-
-              {/* Ações */}
-              <div className="flex flex-col sm:flex-row gap-4 justify-end">
-                <Link
-                  href="/licitacoes"
-                  className="btn-secondary text-center"
-                >
-                  Cancelar
-                </Link>
-                <button
-                  onClick={handleSalvar}
-                  disabled={salvando}
-                  className="btn-primary flex items-center justify-center gap-2"
-                >
-                  {salvando ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Salvando...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="w-5 h-5" />
-                      Salvar Licitação
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          )}
+            </button>
+          </div>
         </main>
-
         <Footer />
       </div>
     </div>
