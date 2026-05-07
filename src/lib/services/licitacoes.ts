@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Licitacao, LicitacaoStatus } from '@/lib/types';
+import { cached, invalidateCache, CACHE_TTL } from '@/lib/cache';
 
 const COLLECTION = 'licitacoes';
 
@@ -26,24 +27,54 @@ export async function criarLicitacao(
     criadoEm: agora,
     atualizadoEm: agora,
   });
+  invalidateCache('licitacoes:');
   return docRef.id;
 }
 
 export async function buscarLicitacao(id: string): Promise<Licitacao | null> {
-  const docSnap = await getDoc(doc(db, COLLECTION, id));
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() } as Licitacao;
+  return cached(
+    `licitacoes:${id}`,
+    async () => {
+      const docSnap = await getDoc(doc(db, COLLECTION, id));
+      if (!docSnap.exists()) return null;
+      return { id: docSnap.id, ...docSnap.data() } as Licitacao;
+    },
+    CACHE_TTL.SHORT
+  );
 }
 
 export async function listarLicitacoes(clientId: string): Promise<Licitacao[]> {
-  const q = query(
-    collection(db, COLLECTION),
-    where('clientId', '==', clientId),
-    orderBy('criadoEm', 'desc'),
-    limit(100)
+  return cached(
+    `licitacoes:list:${clientId}`,
+    async () => {
+      const q = query(
+        collection(db, COLLECTION),
+        where('clientId', '==', clientId),
+        orderBy('criadoEm', 'desc'),
+        limit(100)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Licitacao));
+    },
+    CACHE_TTL.SHORT
   );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Licitacao));
+}
+
+/** Lista licitações de TODOS os clientes (uso interno equipe Abächerly) */
+export async function listarTodasLicitacoes(): Promise<Licitacao[]> {
+  return cached(
+    `licitacoes:list:all`,
+    async () => {
+      const q = query(
+        collection(db, COLLECTION),
+        orderBy('criadoEm', 'desc'),
+        limit(500)
+      );
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Licitacao));
+    },
+    CACHE_TTL.SHORT
+  );
 }
 
 export async function listarLicitacoesPorStatus(
@@ -68,6 +99,7 @@ export async function atualizarLicitacao(
     ...data,
     atualizadoEm: Timestamp.now(),
   });
+  invalidateCache('licitacoes:');
 }
 
 export async function atualizarStatus(
@@ -79,4 +111,5 @@ export async function atualizarStatus(
 
 export async function excluirLicitacao(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id));
+  invalidateCache('licitacoes:');
 }

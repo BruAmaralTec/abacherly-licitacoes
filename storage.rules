@@ -1,0 +1,62 @@
+rules_version = '2';
+
+// Regras Cloud Storage — Abächerly Licitações
+//
+// Estrutura de paths:
+//   clientes/{clientId}/documentos/...   -> docs do cliente
+//   clientes/{clientId}/certidoes/...    -> certidões do cliente
+//   licitacoes/{licitacaoId}/...         -> arquivos vinculados a licitações
+//   analises-ia/{analiseId}/...          -> arquivos de input do agente IA (lifecycle 6 meses no GCS)
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userRole() {
+      return userDoc().role;
+    }
+
+    function userClientId() {
+      return userDoc().clientId;
+    }
+
+    function isEquipe() {
+      return isSignedIn() && (
+        userRole() in ['adm_geral', 'adm_tecnico', 'analista',
+                       'super_admin', 'admin', 'operator']
+      );
+    }
+
+    function isCliente() {
+      return isSignedIn() && userRole() == 'cliente';
+    }
+
+    function isOwner(clientId) {
+      return isCliente() && userClientId() == clientId;
+    }
+
+    // Documentos / certidões do cliente
+    match /clientes/{clientId}/{type}/{file=**} {
+      allow read: if isEquipe() || isOwner(clientId);
+      allow write: if isEquipe() || isOwner(clientId);
+    }
+
+    // Arquivos vinculados a licitações (acesso só pela equipe ou cliente dono)
+    match /licitacoes/{licitacaoId}/{file=**} {
+      allow read: if isSignedIn();
+      allow write: if isEquipe();
+    }
+
+    // Inputs do agente IA — só equipe escreve, leitura para todos signed-in
+    match /analises-ia/{analiseId}/{file=**} {
+      allow read: if isEquipe();
+      allow write: if isEquipe();
+    }
+  }
+}

@@ -1,0 +1,42 @@
+steps:
+  # Build
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$COMMIT_SHA'
+      - -t
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:latest'
+      - .
+
+  # Push
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - --all-tags
+      - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent'
+
+  # Deploy
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - abacherly-agent
+      - --image=us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$COMMIT_SHA
+      - --region=us-central1
+      - --platform=managed
+      - --service-account=abacherly-agent@${PROJECT_ID}.iam.gserviceaccount.com
+      - --allow-unauthenticated
+      - --memory=2Gi
+      - --cpu=2
+      - --timeout=540s
+      - --concurrency=10
+      - --max-instances=5
+      - --set-env-vars=GCP_PROJECT=${PROJECT_ID},GCP_LOCATION=us-central1,GEMINI_MODEL=gemini-2.0-flash-001,GCS_BUCKET=abacherly-analises
+
+images:
+  - 'us-central1-docker.pkg.dev/${PROJECT_ID}/agent/abacherly-agent:$COMMIT_SHA'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

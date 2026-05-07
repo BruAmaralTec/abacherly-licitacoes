@@ -25,6 +25,13 @@ export async function listarCertidoes(clientId: string): Promise<Certidao[]> {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Certidao));
 }
 
+/** Equipe: todas as certidões de todos os clientes */
+export async function listarTodasCertidoes(): Promise<Certidao[]> {
+  const q = query(collection(db, COLLECTION), orderBy('atualizadoEm', 'desc'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Certidao));
+}
+
 export async function atualizarCertidao(
   id: string,
   data: Partial<Certidao>

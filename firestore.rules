@@ -1,0 +1,144 @@
+rules_version = '2';
+
+// Regras Firestore — Abächerly Licitações
+//
+// Princípios:
+// - Equipe Abächerly (adm_geral / adm_tecnico / analista) acessa todos os clientes.
+// - Clientes só acessam seus próprios dados (clientId == seu clientId).
+// - Roles antigos mantidos como sinônimos (super_admin == adm_geral, admin == adm_tecnico, operator == analista)
+//   durante migração — remover quando todos os docs forem renomeados.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==================== HELPERS ====================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userRole() {
+      return userDoc().role;
+    }
+
+    function userClientId() {
+      return userDoc().clientId;
+    }
+
+    function isAdmGeral() {
+      return isSignedIn() && (userRole() == 'adm_geral' || userRole() == 'super_admin');
+    }
+
+    function isAdmTecnico() {
+      return isSignedIn() && (userRole() == 'adm_tecnico' || userRole() == 'admin' || isAdmGeral());
+    }
+
+    function isAnalista() {
+      return isSignedIn() && (userRole() == 'analista' || userRole() == 'operator' || isAdmTecnico());
+    }
+
+    function isEquipe() {
+      return isAdmGeral() || isAdmTecnico() || isAnalista();
+    }
+
+    function isCliente() {
+      return isSignedIn() && userRole() == 'cliente';
+    }
+
+    function isOwnerOfClient(clientId) {
+      return isCliente() && userClientId() == clientId;
+    }
+
+    // ==================== USERS ====================
+    // Cada usuário lê seu próprio doc; equipe (adm) gerencia os demais
+    match /users/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmTecnico());
+      allow create, update: if isAdmTecnico();
+      allow delete: if isAdmGeral();
+    }
+
+    // ==================== LICITAÇÕES ====================
+    // Equipe lê/escreve todas; cliente só as suas
+    match /licitacoes/{id} {
+      allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow create: if isAnalista() || isOwnerOfClient(request.resource.data.clientId);
+      allow update: if isAnalista() || isOwnerOfClient(resource.data.clientId);
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== EVENTOS / AGENDA ====================
+    match /eventos/{id} {
+      allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow create: if isAnalista();
+      allow update, delete: if isAnalista();
+    }
+
+    // ==================== CERTIDÕES ====================
+    match /certidoes/{id} {
+      allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow create, update: if isAnalista() || isOwnerOfClient(request.resource.data.clientId);
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== PAGAMENTOS ====================
+    match /pagamentos/{id} {
+      allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow create, update: if isAnalista();
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== SOLICITAÇÕES (cliente pede análise) ====================
+    match /solicitacoes/{id} {
+      allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow create: if isCliente() && request.resource.data.clientId == userClientId();
+      allow update: if isAnalista() || isOwnerOfClient(resource.data.clientId);
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== DOCUMENTOS ====================
+    match /documentos/{id} {
+      allow read: if isEquipe() || isOwnerOfClient(resource.data.clientId);
+      allow create: if isSignedIn() && (
+        isEquipe() ||
+        (isCliente() && request.resource.data.clientId == userClientId())
+      );
+      allow update: if isAnalista() || isOwnerOfClient(resource.data.clientId);
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== CLIENTES (info empresa) ====================
+    match /clientes/{clientId} {
+      allow read: if isEquipe() || isOwnerOfClient(clientId);
+      allow create, update: if isAdmTecnico() || isOwnerOfClient(clientId);
+      allow delete: if isAdmGeral();
+    }
+
+    // ==================== RELATÓRIOS ====================
+    match /relatorios/{id} {
+      allow read: if isEquipe() || (
+        isOwnerOfClient(resource.data.clientId) && resource.data.liberadoParaCliente == true
+      );
+      allow create, update: if isAnalista();
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== ANÁLISES IA (agente) ====================
+    // Geradas pelo Cloud Run. Equipe gerencia, cliente lê só as suas (quando liberadas).
+    match /analises_ia/{id} {
+      allow read: if isEquipe() || (
+        isOwnerOfClient(resource.data.clientId) && resource.data.liberadoParaCliente == true
+      );
+      allow create, update: if isAnalista();
+      allow delete: if isAdmTecnico();
+    }
+
+    // ==================== CONFIGURAÇÕES SISTEMA ====================
+    // Inclui retenção do agente IA (configurável)
+    match /configuracoes/{id} {
+      allow read: if isEquipe();
+      allow write: if isAdmGeral();
+    }
+  }
+}

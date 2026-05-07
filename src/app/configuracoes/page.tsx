@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Settings, 
+import {
+  Settings,
   Bell,
   Calendar,
   Mail,
@@ -11,17 +11,19 @@ import {
   Shield,
   ExternalLink,
   Save,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import { PageSkeleton } from '@/components/Skeleton';
 import Footer from '@/components/Footer';
+import { buscarConfig, salvarConfig, ConfigSistema } from '@/lib/services/configuracoes';
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
-  const { user, loading, isSuperAdmin } = useAuth();
-  
+  const { user, userProfile, loading, isAdmGeral } = useAuth();
+
   const [config, setConfig] = useState({
     notificacoes: {
       email: true,
@@ -37,17 +39,29 @@ export default function ConfiguracoesPage() {
     }
   });
 
+  const [agente, setAgente] = useState<ConfigSistema>({
+    retencaoMesesAgente: 6,
+    agentUrl: '',
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [feedback, setFeedback] = useState('');
+
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
-    // Apenas super_admin pode acessar
-    if (!loading && user && !isSuperAdmin) {
+    // Apenas Adm. Geral pode acessar
+    if (!loading && user && !isAdmGeral) {
       router.push('/dashboard');
     }
-  }, [user, loading, router, isSuperAdmin]);
+  }, [user, loading, router, isAdmGeral]);
 
-  if (loading || !user || !isSuperAdmin) {
+  useEffect(() => {
+    if (!user) return;
+    buscarConfig().then(setAgente).catch(console.error);
+  }, [user]);
+
+  if (loading || !user || !isAdmGeral) {
     return (
       <div className="min-h-screen w-full bg-[#f8fafc]">
         <Sidebar />
@@ -60,8 +74,25 @@ export default function ConfiguracoesPage() {
     );
   }
 
-  const handleSave = () => {
-    alert('Configurações salvas com sucesso!');
+  const handleSave = async () => {
+    if (!userProfile) return;
+    setSalvando(true);
+    setFeedback('');
+    try {
+      await salvarConfig(
+        {
+          retencaoMesesAgente: Number(agente.retencaoMesesAgente) || 6,
+          agentUrl: agente.agentUrl || '',
+        },
+        userProfile.uid
+      );
+      setFeedback('✓ Configurações salvas');
+      setTimeout(() => setFeedback(''), 3000);
+    } catch (e: any) {
+      setFeedback('Erro: ' + (e?.message || 'falha ao salvar'));
+    } finally {
+      setSalvando(false);
+    }
   };
 
   return (
@@ -78,16 +109,69 @@ export default function ConfiguracoesPage() {
                 Configure o comportamento do sistema
               </p>
             </div>
-            <button 
+            <button
               onClick={handleSave}
-              className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+              disabled={salvando}
+              className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto disabled:opacity-50"
             >
               <Save className="w-5 h-5" />
-              Salvar Alterações
+              {salvando ? 'Salvando...' : 'Salvar Alterações'}
             </button>
           </div>
 
+          {feedback && (
+            <div className={`p-3 rounded-lg mb-4 text-sm ${
+              feedback.startsWith('Erro') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+            }`}>
+              {feedback}
+            </div>
+          )}
+
           <div className="space-y-6">
+            {/* Agente de Análise IA */}
+            <div className="card p-4 sm:p-6 border-l-4 border-[#4674e8]">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-5 h-5 text-[#4674e8]" />
+                <h2 className="text-lg font-bold text-[#2c4a70]">Agente de Análise (IA)</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <label className="font-medium text-[#1a2b45] block mb-1">
+                    Retenção de arquivos (meses)
+                  </label>
+                  <p className="text-xs text-[#1a2b45]/60 mb-2">
+                    Quanto tempo os arquivos enviados ao agente ficam guardados no Cloud Storage.
+                    Padrão: 6 meses. A política de lifecycle do bucket reflete este valor automaticamente.
+                  </p>
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={agente.retencaoMesesAgente}
+                    onChange={(e) => setAgente({ ...agente, retencaoMesesAgente: Number(e.target.value) })}
+                    className="max-w-[120px]"
+                  />
+                </div>
+
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <label className="font-medium text-[#1a2b45] block mb-1">
+                    URL do serviço (Cloud Run)
+                  </label>
+                  <p className="text-xs text-[#1a2b45]/60 mb-2">
+                    Endpoint do agente Python. Configurado também via variável <code>NEXT_PUBLIC_AGENT_URL</code>.
+                    Use este campo apenas para override em runtime (dev/staging).
+                  </p>
+                  <input
+                    type="url"
+                    placeholder="https://abacherly-agent-xxx.run.app"
+                    value={agente.agentUrl || ''}
+                    onChange={(e) => setAgente({ ...agente, agentUrl: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Notificações */}
             <div className="card p-4 sm:p-6">
               <div className="flex items-center gap-2 mb-6">

@@ -22,103 +22,124 @@ import {
   LayoutList,
   FileCheck2,
   Building2,
-  BarChart3
+  BarChart3,
+  Sparkles,
+  Activity
 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, UserRole } from '@/contexts/AuthContext';
+
+// Inclui aliases legados para retrocompat com docs antigos no Firestore
+type RoleAcesso = 'adm_geral' | 'adm_tecnico' | 'analista' | 'cliente'
+                | 'super_admin' | 'admin' | 'operator';
 
 interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles: ('super_admin' | 'admin' | 'operator' | 'cliente')[];
+  roles: RoleAcesso[];
   dividerBefore?: boolean;
 }
 
+const EQUIPE: RoleAcesso[] = ['adm_geral', 'adm_tecnico', 'analista', 'super_admin', 'admin', 'operator'];
+const ADM_TECNICO_OU_GERAL: RoleAcesso[] = ['adm_geral', 'adm_tecnico', 'super_admin', 'admin'];
+const SO_ADM_GERAL: RoleAcesso[] = ['adm_geral', 'super_admin'];
+const TODOS: RoleAcesso[] = [...EQUIPE, 'cliente'];
+const SO_CLIENTE: RoleAcesso[] = ['cliente'];
+
 const navItems: NavItem[] = [
+  // ==================== EQUIPE ABÄCHERLY ====================
+  {
+    name: 'Agente de Análise',
+    href: '/equipe/agente-analise',
+    icon: Sparkles,
+    roles: EQUIPE,
+  },
   {
     name: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['super_admin', 'admin', 'operator', 'cliente']
+    roles: EQUIPE,
   },
   {
-    name: 'Solicitar Análise',
-    href: '/solicitacoes',
-    icon: ClipboardList,
-    roles: ['super_admin', 'admin', 'operator', 'cliente']
-  },
-  {
-    name: 'Enviar Documentos',
-    href: '/documentos',
-    icon: Upload,
-    roles: ['super_admin', 'admin', 'operator', 'cliente']
-  },
-  {
-    name: 'Relatório',
-    href: '/relatorios',
-    icon: BarChart3,
-    roles: ['super_admin', 'admin', 'operator', 'cliente']
-  },
-  {
-    name: 'Licitações',
-    href: '/licitacoes',
+    name: 'Licitações em Trabalho',
+    href: '/equipe/licitacoes',
     icon: FileText,
-    roles: ['super_admin', 'admin', 'operator', 'cliente']
+    roles: EQUIPE,
   },
   {
     name: 'Nova Licitação',
     href: '/licitacoes/nova',
     icon: Plus,
-    roles: ['super_admin', 'admin']
+    roles: ADM_TECNICO_OU_GERAL,
   },
   {
     name: 'Agenda',
     href: '/agenda',
     icon: Calendar,
-    roles: ['super_admin', 'admin', 'operator']
+    roles: EQUIPE,
   },
   {
     name: 'Certidões',
-    href: '/certidoes',
+    href: '/equipe/certidoes',
     icon: FileCheck,
-    roles: ['super_admin', 'admin', 'operator']
+    roles: EQUIPE,
   },
   {
     name: 'Pagamentos',
     href: '/pagamentos',
     icon: DollarSign,
-    roles: ['super_admin', 'admin', 'operator']
+    roles: EQUIPE,
   },
   {
     name: 'Painel Solicitações',
     href: '/admin/solicitacoes',
     icon: LayoutList,
-    roles: ['super_admin', 'admin'],
-    dividerBefore: true
+    roles: ADM_TECNICO_OU_GERAL,
+    dividerBefore: true,
   },
   {
     name: 'Validar Documentos',
     href: '/admin/documentos',
     icon: FileCheck2,
-    roles: ['super_admin', 'admin']
+    roles: ADM_TECNICO_OU_GERAL,
   },
   {
     name: 'Info Clientes',
     href: '/admin/clientes',
     icon: Building2,
-    roles: ['super_admin', 'admin']
+    roles: ADM_TECNICO_OU_GERAL,
   },
   {
     name: 'Usuários',
     href: '/usuarios',
     icon: Users,
-    roles: ['super_admin', 'admin']
+    roles: ADM_TECNICO_OU_GERAL,
   },
   {
     name: 'Configurações',
     href: '/configuracoes',
     icon: Settings,
-    roles: ['super_admin']
+    roles: SO_ADM_GERAL,
+  },
+
+  // ==================== CLIENTE ====================
+  {
+    name: 'Acompanhamento',
+    href: '/cliente/acompanhamento',
+    icon: Activity,
+    roles: SO_CLIENTE,
+  },
+  {
+    name: 'Solicitar Análise',
+    href: '/cliente/solicitacoes',
+    icon: ClipboardList,
+    roles: SO_CLIENTE,
+  },
+  {
+    name: 'Enviar Documentos',
+    href: '/cliente/documentos',
+    icon: Upload,
+    roles: SO_CLIENTE,
   },
 ];
 
@@ -174,9 +195,9 @@ export default function Sidebar() {
           <div className="flex-1 min-w-0">
             <p className="font-bold truncate text-sm lg:text-base">{userProfile?.name || 'Usuário'}</p>
             <p className="text-xs text-white/60 truncate">
-              {userProfile?.role === 'super_admin' && 'Super Admin'}
-              {userProfile?.role === 'admin' && 'Administrador'}
-              {userProfile?.role === 'operator' && 'Operador'}
+              {(userProfile?.role === 'adm_geral' || userProfile?.role === 'super_admin') && 'Adm. Geral'}
+              {(userProfile?.role === 'adm_tecnico' || userProfile?.role === 'admin') && 'Adm. Técnico'}
+              {(userProfile?.role === 'analista' || userProfile?.role === 'operator') && 'Analista'}
               {userProfile?.role === 'cliente' && 'Cliente'}
             </p>
           </div>

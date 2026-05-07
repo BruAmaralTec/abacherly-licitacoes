@@ -8,3 +8,5 @@ export * from './documentos';
 export * from './clientes';
 export * from './relatorios';
 export * from './usuarios';
+export * from './agente';
+export * from './configuracoes';

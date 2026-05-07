@@ -8,11 +8,21 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 // Tipos de perfil de usuário
-export type UserRole = 'super_admin' | 'admin' | 'operator' | 'cliente';
+// Roles equipe Abächerly: adm_geral, adm_tecnico, analista
+// Role cliente: cliente
+// Legados (para retrocompatibilidade durante migração): super_admin, admin, operator
+export type UserRole =
+  | 'adm_geral'
+  | 'adm_tecnico'
+  | 'analista'
+  | 'cliente'
+  | 'super_admin'
+  | 'admin'
+  | 'operator';
 
 export interface UserProfile {
   uid: string;
@@ -24,6 +34,22 @@ export interface UserProfile {
   lastLogin?: Date;
 }
 
+// Mapeia roles legados para os novos sem alterar dados em runtime
+function normalizarRole(role: string | undefined): UserRole {
+  switch (role) {
+    case 'super_admin': return 'adm_geral';
+    case 'admin': return 'adm_tecnico';
+    case 'operator': return 'analista';
+    case 'adm_geral':
+    case 'adm_tecnico':
+    case 'analista':
+    case 'cliente':
+      return role as UserRole;
+    default:
+      return 'analista';
+  }
+}
+
 interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
@@ -31,10 +57,16 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  // Flags por role (já normalizadas)
+  isAdmGeral: boolean;
+  isAdmTecnico: boolean;
+  isAnalista: boolean;
+  isCliente: boolean;
+  isEquipe: boolean;
+  // Aliases legados (mantidos para não quebrar telas antigas durante migração)
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isOperator: boolean;
-  isCliente: boolean;
 }
 
 const CACHE_KEY = 'abacherly_user_profile';
@@ -71,27 +103,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
 
       if (firebaseUser && firebaseUser.email) {
-        // Se já temos cache e o email bate, mostrar imediatamente
+        // Se já temos cache e o uid bate, mostrar imediatamente e revalidar em background
         const cached = getCachedProfile();
-        if (cached && cached.email === firebaseUser.email) {
+        if (cached && cached.uid === firebaseUser.uid) {
           setUserProfile(cached);
           setLoading(false);
         }
 
-        // Buscar perfil atualizado do Firestore em background
         try {
-          const usersRef = collection(db, 'users');
-          const q = query(usersRef, where('email', '==', firebaseUser.email));
-          const querySnapshot = await getDocs(q);
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          const snap = await getDoc(userDocRef);
 
-          if (!querySnapshot.empty) {
-            const userDoc = querySnapshot.docs[0];
-            const data = userDoc.data();
+          if (snap.exists()) {
+            const data = snap.data();
             const profile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               name: data.name || 'Usuário',
-              role: data.role || 'operator',
+              role: normalizarRole(data.role),
               clientId: data.clientId,
             };
             setUserProfile(profile);
@@ -101,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               name: firebaseUser.email.split('@')[0],
-              role: 'operator',
+              role: 'analista',
             };
             setUserProfile(fallback);
             setCachedProfile(fallback);
@@ -113,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
               name: firebaseUser.email.split('@')[0],
-              role: 'operator',
+              role: 'analista',
             });
           }
         }
@@ -142,10 +171,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth, email);
   };
 
-  const isSuperAdmin = userProfile?.role === 'super_admin';
-  const isAdmin = userProfile?.role === 'admin' || isSuperAdmin;
-  const isOperator = userProfile?.role === 'operator' || isAdmin;
-  const isCliente = userProfile?.role === 'cliente';
+  const role = userProfile?.role;
+  const isAdmGeral = role === 'adm_geral' || role === 'super_admin';
+  const isAdmTecnico = role === 'adm_tecnico' || role === 'admin' || isAdmGeral;
+  const isAnalista = role === 'analista' || role === 'operator' || isAdmTecnico;
+  const isCliente = role === 'cliente';
+  const isEquipe = isAdmGeral || isAdmTecnico || isAnalista;
+  // Aliases legados — apontam para os mesmos novos perfis
+  const isSuperAdmin = isAdmGeral;
+  const isAdmin = isAdmTecnico;
+  const isOperator = isAnalista;
 
   const value = useMemo(() => ({
     user,
@@ -154,11 +189,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     resetPassword,
+    isAdmGeral,
+    isAdmTecnico,
+    isAnalista,
+    isCliente,
+    isEquipe,
     isSuperAdmin,
     isAdmin,
     isOperator,
-    isCliente,
-  }), [user, userProfile, loading, isSuperAdmin, isAdmin, isOperator, isCliente]);
+  }), [user, userProfile, loading, isAdmGeral, isAdmTecnico, isAnalista, isCliente, isEquipe]);
 
   return (
     <AuthContext.Provider value={value}>
