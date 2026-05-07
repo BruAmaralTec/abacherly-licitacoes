@@ -85,11 +85,16 @@ interface AuthContextType {
   isOperator: boolean;
 }
 
-const CACHE_KEY = 'abacherly_user_profile';
+// Versão do cache. Aumente quando a estrutura/roles mudarem para invalidar
+// caches localStorage de sessões antigas em todos os usuários.
+// v2: inversão de hierarquia adm_tecnico/adm_geral + auto-cura de docs legados.
+const CACHE_KEY = 'abacherly_user_profile_v2';
 
 function getCachedProfile(): UserProfile | null {
   if (typeof window === 'undefined') return null;
   try {
+    // Limpa caches de versões antigas
+    localStorage.removeItem('abacherly_user_profile');
     const cached = localStorage.getItem(CACHE_KEY);
     if (cached) return JSON.parse(cached);
   } catch {}
@@ -103,6 +108,7 @@ function setCachedProfile(profile: UserProfile | null) {
       localStorage.setItem(CACHE_KEY, JSON.stringify(profile));
     } else {
       localStorage.removeItem(CACHE_KEY);
+      localStorage.removeItem('abacherly_user_profile');
     }
   } catch {}
 }
