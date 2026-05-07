@@ -33,6 +33,12 @@ export default function AnalisePage() {
   const [salvo, setSalvo] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [menuExportar, setMenuExportar] = useState(false);
+  const [dataHoje, setDataHoje] = useState('');
+
+  // Renderiza a data só no cliente para evitar hydration mismatch
+  useEffect(() => {
+    setDataHoje(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }));
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -433,8 +439,8 @@ export default function AnalisePage() {
                   Em caso de dúvidas consultar o edital e seus anexos, este resumo não exime a leitura total dos documentos oficiais da presente licitação.
                 </p>
                 <div className="mt-6 text-center">
-                  <p className="text-sm text-[#1a2b45]/80">
-                    Itu, {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  <p className="text-sm text-[#1a2b45]/80" suppressHydrationWarning>
+                    Itu, {dataHoje}
                   </p>
                   <p className="mt-4 text-sm font-bold text-[#2c4a70]">Atenciosamente,</p>
                   <p className="text-sm text-[#2c4a70]">Érika Abächerly</p>
