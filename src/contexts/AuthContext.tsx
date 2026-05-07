@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 // Tipos de perfil de usuário
@@ -119,19 +119,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
 
       if (firebaseUser && firebaseUser.email) {
-        // Se já temos cache e o uid bate, mostrar imediatamente e revalidar em background
         const cached = getCachedProfile();
+        // Mostra cache instantaneamente se o uid bate — UX rápida
         if (cached && cached.uid === firebaseUser.uid) {
           setUserProfile(cached);
           setLoading(false);
         }
 
         try {
+          // 1. Tentativa primária: doc/users/{uid}
           const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const snap = await getDoc(userDocRef);
+          let snap = await getDoc(userDocRef);
+          let data: any = snap.exists() ? snap.data() : null;
 
-          if (snap.exists()) {
-            const data = snap.data();
+          // 2. Fallback: se não achou por uid, busca por email (auto-cura para
+          //    docs legados criados antes da migração de IDs)
+          if (!data) {
+            const q = query(
+              collection(db, 'users'),
+              where('email', '==', firebaseUser.email)
+            );
+            const result = await getDocs(q);
+            if (!result.empty) {
+              const legacyDoc = result.docs[0];
+              data = legacyDoc.data();
+              // Migra: cria doc com UID correto e remove o antigo
+              await setDoc(userDocRef, {
+                ...data,
+                role: normalizarRole(data.role),
+                lastLogin: Timestamp.now(),
+              });
+              if (legacyDoc.id !== firebaseUser.uid) {
+                try { await deleteDoc(legacyDoc.ref); } catch {}
+              }
+              console.log('[Auth] doc legado migrado para uid', firebaseUser.uid);
+            }
+          }
+
+          if (data) {
             const profile: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -142,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserProfile(profile);
             setCachedProfile(profile);
           } else {
+            // Nenhum doc encontrado nem por uid nem por email — fallback mínimo (analista)
             const fallback: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,

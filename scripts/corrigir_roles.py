@@ -14,6 +14,8 @@ from firebase_admin import auth, firestore as admin_fs
 CORRECOES = {
     "contato@bruamaral.tec.br": "adm_tecnico",
     "erika@abacherly.com.br": "adm_geral",
+    # Erika gmail é backup da Erika abacherly — mesmo nivel
+    "erikaabacherlybkp@gmail.com": "adm_geral",
 }
 
 firebase_admin.initialize_app(options={"projectId": "abacherly-licitacoes"})
