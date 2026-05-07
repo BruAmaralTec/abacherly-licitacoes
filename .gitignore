@@ -44,6 +44,11 @@ firestore-debug.log
 ui-debug.log
 .firebase/
 
+# NUNCA commitar Service Account keys
+scripts/vercel-sa-key.json
+*-sa-key.json
+*service-account*.json
+
 # Claude Code local files
 .claude/
 

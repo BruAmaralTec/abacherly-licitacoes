@@ -18,15 +18,12 @@ const firebaseConfig = {
 
 const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Firestore: força HTTP long-polling sempre (em vez de WebSockets).
-// Resolve "client is offline" em redes com proxy/antivirus/extensoes que
-// bloqueiam WebSocket. HTTP passa em 100% das redes que abrem o restante do site.
-// Sem persistencia local — evita problemas com IndexedDB restrito.
+// Firestore client-side só é usado pelos services antigos (licitações, eventos etc).
+// O AuthContext e os fluxos críticos (profile) usam API routes Next.js server-side.
+// experimentalForceLongPolling para máxima compatibilidade caso o cliente use.
 let dbInstance: Firestore;
 try {
-  dbInstance = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
-  });
+  dbInstance = initializeFirestore(app, { experimentalForceLongPolling: true });
 } catch {
   dbInstance = getFirestore(app);
 }

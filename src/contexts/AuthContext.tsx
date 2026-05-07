@@ -8,8 +8,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc, Timestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 
 // Tipos de perfil de usuário
 // Roles equipe Abächerly: adm_geral, adm_tecnico, analista
@@ -132,71 +131,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
         }
 
-        // Retry helper para o caso de "client is offline" durante warm-up
-        const tryFetchProfile = async (tentativa = 1): Promise<any | null> => {
-          try {
-            const userDocRef = doc(db, 'users', firebaseUser.uid);
-            const snap = await getDoc(userDocRef);
-            if (snap.exists()) return snap.data();
-
-            // Fallback: busca por email (auto-cura para docs legados)
-            const q = query(
-              collection(db, 'users'),
-              where('email', '==', firebaseUser.email)
-            );
-            const result = await getDocs(q);
-            if (!result.empty) {
-              const legacyDoc = result.docs[0];
-              const legacyData = legacyDoc.data();
-              try {
-                await setDoc(userDocRef, {
-                  ...legacyData,
-                  role: normalizarRole(legacyData.role),
-                  lastLogin: Timestamp.now(),
-                });
-                if (legacyDoc.id !== firebaseUser.uid) {
-                  try { await deleteDoc(legacyDoc.ref); } catch {}
-                }
-                console.log('[Auth] doc legado migrado para uid', firebaseUser.uid);
-              } catch {}
-              return legacyData;
-            }
-            return null;
-          } catch (err: any) {
-            const isOffline = String(err?.code || err?.message || '').includes('offline');
-            if (isOffline && tentativa < 3) {
-              console.warn(`[Auth] tentativa ${tentativa} falhou (offline), retentando em ${tentativa * 500}ms`);
-              await new Promise((r) => setTimeout(r, tentativa * 500));
-              return tryFetchProfile(tentativa + 1);
-            }
-            throw err;
-          }
-        };
-
+        // Busca profile via API route Next.js (server-side usa Firebase Admin).
+        // Evita o Firestore JS SDK no browser inteiro — funciona em qualquer
+        // rede que abre o site Vercel.
         try {
-          const data = await tryFetchProfile();
-          if (data) {
-            const profile: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              name: data.name || 'Usuário',
-              role: normalizarRole(data.role),
-              clientId: data.clientId,
-            };
-            setUserProfile(profile);
-            setCachedProfile(profile);
-          } else {
-            const fallback: UserProfile = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email,
-              name: firebaseUser.email.split('@')[0],
-              role: 'analista',
-            };
-            setUserProfile(fallback);
-            setCachedProfile(fallback);
+          const idToken = await firebaseUser.getIdToken();
+          const res = await fetch('/api/profile', {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${idToken}` },
+            cache: 'no-store',
+          });
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
           }
+          const data = await res.json();
+          const profile: UserProfile = {
+            uid: data.uid,
+            email: data.email,
+            name: data.name || 'Usuário',
+            role: normalizarRole(data.role),
+            clientId: data.clientId,
+          };
+          setUserProfile(profile);
+          setCachedProfile(profile);
         } catch (error) {
-          console.error('[Auth] Erro ao buscar perfil (todas tentativas):', error);
+          console.error('[Auth] Erro ao buscar perfil:', error);
           if (!getCachedProfile()) {
             setUserProfile({
               uid: firebaseUser.uid,
