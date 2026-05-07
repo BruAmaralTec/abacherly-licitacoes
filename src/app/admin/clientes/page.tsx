@@ -3,11 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Building2,
   Loader2,
   Save,
   ArrowLeft,
-  CheckCircle,
   Plus,
   X,
   Sparkles,
@@ -22,27 +20,11 @@ import { PageSkeleton } from '@/components/Skeleton';
 import Footer from '@/components/Footer';
 import {
   listarClientes,
-  buscarCliente,
   salvarCliente,
   extrairCartaoCNPJ,
   ExtracaoCartaoCNPJ,
 } from '@/lib/services/clientes';
-import { ClienteInfo, Modalidade } from '@/lib/types';
-
-const MODALIDADES_OPCOES: string[] = [
-  'Pregão Eletrônico',
-  'Pregão Presencial',
-  'Concorrência',
-  'Tomada de Preços',
-  'Convite',
-  'Dispensa',
-  'Inexigibilidade',
-];
-
-const UFS = [
-  'AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT',
-  'PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'
-];
+import { ClienteInfo } from '@/lib/types';
 
 export default function AdminClientesPage() {
   const router = useRouter();
@@ -53,7 +35,6 @@ export default function AdminClientesPage() {
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteInfo | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
-  const [novaPalavra, setNovaPalavra] = useState('');
   const [novoDoc, setNovoDoc] = useState('');
   const [analisandoCnpj, setAnalisandoCnpj] = useState(false);
   const [erroCnpj, setErroCnpj] = useState('');
@@ -150,37 +131,6 @@ export default function AdminClientesPage() {
       setAnalisandoCnpj(false);
       if (cartaoInputRef.current) cartaoInputRef.current.value = '';
     }
-  };
-
-  const toggleModalidade = (mod: string) => {
-    if (!clienteSelecionado) return;
-    const atual = clienteSelecionado.modalidadesInteresse || [];
-    const nova = atual.includes(mod)
-      ? atual.filter((m) => m !== mod)
-      : [...atual, mod];
-    updateField('modalidadesInteresse', nova);
-  };
-
-  const toggleUf = (uf: string) => {
-    if (!clienteSelecionado) return;
-    const atual = clienteSelecionado.ufsInteresse || [];
-    const nova = atual.includes(uf)
-      ? atual.filter((u) => u !== uf)
-      : [...atual, uf];
-    updateField('ufsInteresse', nova);
-  };
-
-  const adicionarPalavra = () => {
-    if (!novaPalavra.trim() || !clienteSelecionado) return;
-    const atual = clienteSelecionado.palavrasChaveObjeto || [];
-    updateField('palavrasChaveObjeto', [...atual, novaPalavra.trim()]);
-    setNovaPalavra('');
-  };
-
-  const removerPalavra = (index: number) => {
-    if (!clienteSelecionado) return;
-    const atual = clienteSelecionado.palavrasChaveObjeto || [];
-    updateField('palavrasChaveObjeto', atual.filter((_, i) => i !== index));
   };
 
   const adicionarDoc = () => {
@@ -398,114 +348,6 @@ export default function AdminClientesPage() {
                   </div>
                 </div>
 
-                {/* Modalidades de Interesse */}
-                <div className="card p-4 sm:p-6">
-                  <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Modalidades de Interesse</h2>
-                  <div className="flex flex-wrap gap-2">
-                    {MODALIDADES_OPCOES.map((mod) => {
-                      const ativo = (clienteSelecionado.modalidadesInteresse || []).includes(mod);
-                      return (
-                        <button
-                          key={mod}
-                          onClick={() => toggleModalidade(mod)}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                            ativo
-                              ? 'bg-[#4674e8] text-white'
-                              : 'bg-gray-100 text-[#1a2b45]/70 hover:bg-gray-200'
-                          }`}
-                        >
-                          {ativo && <CheckCircle className="w-3 h-3 inline mr-1" />}
-                          {mod}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Regras de Análise */}
-                <div className="card p-4 sm:p-6">
-                  <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Regras de Análise</h2>
-
-                  {/* UFs */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-[#1a2b45] mb-2">UFs de Interesse</label>
-                    <div className="flex flex-wrap gap-1">
-                      {UFS.map((uf) => {
-                        const ativo = (clienteSelecionado.ufsInteresse || []).includes(uf);
-                        return (
-                          <button
-                            key={uf}
-                            onClick={() => toggleUf(uf)}
-                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                              ativo
-                                ? 'bg-[#4674e8] text-white'
-                                : 'bg-gray-100 text-[#1a2b45]/60 hover:bg-gray-200'
-                            }`}
-                          >
-                            {uf}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Valores */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-[#1a2b45] mb-1">Valor Mínimo (R$)</label>
-                      <input
-                        type="number"
-                        value={clienteSelecionado.valorMinimo || ''}
-                        onChange={(e) => updateField('valorMinimo', Number(e.target.value) || undefined)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#4674e8]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-[#1a2b45] mb-1">Valor Máximo (R$)</label>
-                      <input
-                        type="number"
-                        value={clienteSelecionado.valorMaximo || ''}
-                        onChange={(e) => updateField('valorMaximo', Number(e.target.value) || undefined)}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#4674e8]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Palavras-chave */}
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-[#1a2b45] mb-2">Palavras-chave do Objeto</label>
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={novaPalavra}
-                        onChange={(e) => setNovaPalavra(e.target.value)}
-                        placeholder="Nova palavra-chave..."
-                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg focus:border-[#4674e8]"
-                        onKeyDown={(e) => e.key === 'Enter' && adicionarPalavra()}
-                      />
-                      <button
-                        onClick={adicionarPalavra}
-                        className="px-3 py-2 bg-[#4674e8] text-white rounded-lg hover:bg-[#3a63d0]"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {(clienteSelecionado.palavrasChaveObjeto || []).map((p, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-50 text-blue-700 text-sm"
-                        >
-                          {p}
-                          <button onClick={() => removerPalavra(i)}>
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
                 {/* Documentos Obrigatórios */}
                 <div className="card p-4 sm:p-6">
                   <h2 className="text-lg font-bold text-[#2c4a70] mb-4">Documentos Obrigatórios</h2>
@@ -575,15 +417,13 @@ export default function AdminClientesPage() {
                     Informações por Cliente
                   </h1>
                   <p className="text-sm lg:text-base text-[#1a2b45]/60 mt-1">
-                    Configure regras e dados cadastrais de cada cliente
+                    Dados cadastrais dos clientes
                   </p>
                 </div>
                 <button
                   onClick={() => setClienteSelecionado({
                     cnpj: '',
                     razaoSocial: '',
-                    modalidadesInteresse: [],
-                    ufsInteresse: [],
                     documentosObrigatorios: [],
                     atualizadoPor: user?.uid || '',
                   } as any)}
@@ -620,18 +460,11 @@ export default function AdminClientesPage() {
                             <p className="text-sm text-[#1a2b45]/60 truncate">{c.nomeFantasia}</p>
                           )}
                           <p className="text-xs text-[#1a2b45]/40 mt-1">{c.cnpj}</p>
-                          <div className="flex gap-1 mt-2 flex-wrap">
-                            {(c.modalidadesInteresse || []).slice(0, 2).map((m) => (
-                              <span key={m} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
-                                {m}
-                              </span>
-                            ))}
-                            {(c.modalidadesInteresse || []).length > 2 && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                                +{(c.modalidadesInteresse || []).length - 2}
-                              </span>
-                            )}
-                          </div>
+                          {c.porteEmpresa && (
+                            <span className="inline-block mt-2 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
+                              {c.porteEmpresa}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>

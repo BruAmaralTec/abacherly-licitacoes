@@ -266,11 +266,6 @@ export interface ClienteInfo {
   telefone?: string;
   emailContato?: string;
   porteEmpresa?: string;
-  modalidadesInteresse: string[];
-  ufsInteresse: string[];
-  valorMinimo?: number;
-  valorMaximo?: number;
-  palavrasChaveObjeto?: string[];
   documentosObrigatorios: string[];
   observacoes?: string;
   cartaoCNPJUrl?: string;
