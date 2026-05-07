@@ -1,7 +1,5 @@
-import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
-const DOC_PATH = 'configuracoes/sistema';
+import { api } from '@/lib/apiClient';
+import { Timestamp } from 'firebase/firestore';
 
 export interface ConfigSistema {
   retencaoMesesAgente: number;
@@ -10,35 +8,25 @@ export interface ConfigSistema {
   atualizadoPor?: string;
 }
 
-const DEFAULT: ConfigSistema = {
-  retencaoMesesAgente: 6,
-};
+const DEFAULT: ConfigSistema = { retencaoMesesAgente: 6 };
 
 export async function buscarConfig(): Promise<ConfigSistema> {
-  const ref = doc(db, DOC_PATH);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return DEFAULT;
-  const data = snap.data() as Partial<ConfigSistema>;
-  return {
-    retencaoMesesAgente: data.retencaoMesesAgente ?? DEFAULT.retencaoMesesAgente,
-    agentUrl: data.agentUrl,
-    atualizadoEm: data.atualizadoEm,
-    atualizadoPor: data.atualizadoPor,
-  };
+  try {
+    const data = await api.get<ConfigSistema>('/api/configuracoes');
+    return {
+      retencaoMesesAgente: data?.retencaoMesesAgente ?? DEFAULT.retencaoMesesAgente,
+      agentUrl: data?.agentUrl,
+      atualizadoEm: data?.atualizadoEm,
+      atualizadoPor: data?.atualizadoPor,
+    };
+  } catch {
+    return DEFAULT;
+  }
 }
 
 export async function salvarConfig(
   config: Partial<ConfigSistema>,
-  uid: string
+  _uid: string
 ): Promise<void> {
-  const ref = doc(db, DOC_PATH);
-  await setDoc(
-    ref,
-    {
-      ...config,
-      atualizadoEm: Timestamp.now(),
-      atualizadoPor: uid,
-    },
-    { merge: true }
-  );
+  await api.patch('/api/configuracoes', config);
 }

@@ -1,75 +1,28 @@
-import {
-  collection,
-  addDoc,
-  doc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  query,
-  where,
-  orderBy,
-  limit,
-  Timestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Solicitacao, SolicitacaoStatus } from '@/lib/types';
-
-const COLLECTION = 'solicitacoes';
+import { api } from '@/lib/apiClient';
 
 export async function criarSolicitacao(
   data: Omit<Solicitacao, 'id' | 'criadoEm' | 'atualizadoEm'>
 ): Promise<string> {
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...data,
-    criadoEm: Timestamp.now(),
-    atualizadoEm: Timestamp.now(),
-  });
-  return docRef.id;
+  const r = await api.post<{ id: string }>('/api/solicitacoes', data);
+  return r.id;
 }
 
 export async function buscarSolicitacao(id: string): Promise<Solicitacao | null> {
-  const docRef = doc(db, COLLECTION, id);
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() } as Solicitacao;
+  return api.get<Solicitacao | null>(`/api/solicitacoes/${id}`);
 }
 
 export async function listarSolicitacoesPorCliente(clientId: string): Promise<Solicitacao[]> {
-  const q = query(
-    collection(db, COLLECTION),
-    where('clientId', '==', clientId),
-    orderBy('criadoEm', 'desc'),
-    limit(100)
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Solicitacao);
+  return api.get<Solicitacao[]>(`/api/solicitacoes?clientId=${encodeURIComponent(clientId)}`);
 }
 
 export async function listarTodasSolicitacoes(status?: SolicitacaoStatus): Promise<Solicitacao[]> {
-  let q;
-  if (status) {
-    q = query(
-      collection(db, COLLECTION),
-      where('status', '==', status),
-      orderBy('criadoEm', 'desc'),
-      limit(200)
-    );
-  } else {
-    q = query(collection(db, COLLECTION), orderBy('criadoEm', 'desc'), limit(200));
-  }
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as Solicitacao);
+  const qs = status ? `?status=${status}` : '';
+  return api.get<Solicitacao[]>(`/api/solicitacoes${qs}`);
 }
 
-export async function atualizarSolicitacao(
-  id: string,
-  data: Partial<Solicitacao>
-): Promise<void> {
-  const docRef = doc(db, COLLECTION, id);
-  await updateDoc(docRef, {
-    ...data,
-    atualizadoEm: Timestamp.now(),
-  });
+export async function atualizarSolicitacao(id: string, data: Partial<Solicitacao>): Promise<void> {
+  await api.patch(`/api/solicitacoes/${id}`, data);
 }
 
 export async function processarSolicitacao(

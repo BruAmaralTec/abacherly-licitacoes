@@ -1,92 +1,43 @@
-import {
-  collection,
-  doc,
-  addDoc,
-  getDoc,
-  getDocs,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  orderBy,
-  Timestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { Evento, TipoEvento } from '@/lib/types';
-
-const COLLECTION = 'eventos';
+import { api } from '@/lib/apiClient';
 
 export async function criarEvento(
   data: Omit<Evento, 'id' | 'criadoEm' | 'atualizadoEm'>
 ): Promise<string> {
-  const agora = Timestamp.now();
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...data,
-    criadoEm: agora,
-    atualizadoEm: agora,
-  });
-  return docRef.id;
+  const r = await api.post<{ id: string }>('/api/eventos', data);
+  return r.id;
 }
 
 export async function buscarEvento(id: string): Promise<Evento | null> {
-  const docSnap = await getDoc(doc(db, COLLECTION, id));
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() } as Evento;
+  return api.get<Evento | null>(`/api/eventos/${id}`);
 }
 
 export async function listarEventos(clientId: string): Promise<Evento[]> {
-  const q = query(
-    collection(db, COLLECTION),
-    where('clientId', '==', clientId),
-    orderBy('dataHora', 'asc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Evento));
+  return api.get<Evento[]>(`/api/eventos?clientId=${encodeURIComponent(clientId)}`);
 }
 
 export async function listarEventosProximos(
   clientId: string,
   dias: number = 30
 ): Promise<Evento[]> {
-  const agora = Timestamp.now();
-  const limite = Timestamp.fromDate(
-    new Date(Date.now() + dias * 24 * 60 * 60 * 1000)
+  return api.get<Evento[]>(
+    `/api/eventos?clientId=${encodeURIComponent(clientId)}&proximosDias=${dias}`
   );
-  const q = query(
-    collection(db, COLLECTION),
-    where('clientId', '==', clientId),
-    where('dataHora', '>=', agora),
-    where('dataHora', '<=', limite),
-    orderBy('dataHora', 'asc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Evento));
 }
 
 export async function listarEventosPorTipo(
   clientId: string,
   tipo: TipoEvento
 ): Promise<Evento[]> {
-  const q = query(
-    collection(db, COLLECTION),
-    where('clientId', '==', clientId),
-    where('tipo', '==', tipo),
-    orderBy('dataHora', 'asc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as Evento));
+  // filtragem por tipo no client (mais simples que adicionar query no server agora)
+  const todos = await listarEventos(clientId);
+  return todos.filter((e) => e.tipo === tipo);
 }
 
-export async function marcarConcluido(
-  id: string,
-  concluido: boolean = true
-): Promise<void> {
-  await updateDoc(doc(db, COLLECTION, id), {
-    concluido,
-    atualizadoEm: Timestamp.now(),
-  });
+export async function marcarConcluido(id: string, concluido: boolean = true): Promise<void> {
+  await api.patch(`/api/eventos/${id}`, { concluido });
 }
 
 export async function excluirEvento(id: string): Promise<void> {
-  await deleteDoc(doc(db, COLLECTION, id));
+  await api.delete(`/api/eventos/${id}`);
 }
