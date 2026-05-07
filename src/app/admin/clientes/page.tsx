@@ -551,6 +551,19 @@ export default function AdminClientesPage() {
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-[#4674e8] resize-y"
                   />
                 </div>
+
+                {/* Botão Salvar (rodapé) */}
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  {salvo && <span className="text-sm text-green-600 font-medium">Salvo!</span>}
+                  <button
+                    onClick={handleSalvar}
+                    disabled={salvando}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Salvar
+                  </button>
+                </div>
               </div>
             </>
           ) : (
