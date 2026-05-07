@@ -141,14 +141,18 @@ a:hover {
   opacity: 0.3;
 }
 
-/* Input Fields */
-input[type="text"],
-input[type="email"],
-input[type="password"],
-input[type="number"],
-input[type="date"],
-textarea,
-select {
+/* Input Fields — :where() zera especificidade pra que classes Tailwind
+   (pl-10, py-2, etc) consigam sobrescrever sem precisar de !important. */
+:where(input[type="text"]),
+:where(input[type="email"]),
+:where(input[type="password"]),
+:where(input[type="number"]),
+:where(input[type="date"]),
+:where(input[type="url"]),
+:where(input[type="tel"]),
+:where(input[type="search"]),
+:where(textarea),
+:where(select) {
   font-family: var(--font-serif), Georgia, 'Times New Roman', serif;
   padding: 0.75rem 1rem;
   border: 1px solid #e2e8f0;
@@ -158,9 +162,9 @@ select {
   width: 100%;
 }
 
-input:focus,
-textarea:focus,
-select:focus {
+:where(input):focus,
+:where(textarea):focus,
+:where(select):focus {
   outline: none;
   border-color: var(--color-secondary);
   box-shadow: 0 0 0 3px rgba(70, 116, 232, 0.1);
