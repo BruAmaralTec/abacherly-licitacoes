@@ -64,7 +64,10 @@ def criar_licitacao(
     extracao: dict[str, Any],
     analise_id: str,
 ) -> str:
-    """Cria nova licitação no Firestore a partir da extração do agente."""
+    """Cria nova licitação no Firestore a partir da extração do agente.
+
+    Schema novo (padrão Abächerly): cabeçalho + resumo + 10 seções fixas + 6 opcionais.
+    """
     db = get_db()
     agora = datetime.now(timezone.utc)
 
@@ -77,9 +80,78 @@ def criar_licitacao(
         except (ValueError, TypeError):
             pass
 
+    resumo = extracao.get("resumo") or {}
+    doc_estruturada = extracao.get("documentacao") or {}
+
+    # Compõe a string da seção DOCUMENTAÇÃO (legado) a partir das subseções novas
+    partes_doc = []
+    if doc_estruturada.get("atencao"):
+        partes_doc.append(f"ATENÇÃO\n{doc_estruturada.get('atencao')}")
+    if doc_estruturada.get("questionamentos"):
+        partes_doc.append(f"QUESTIONAMENTOS\n{doc_estruturada.get('questionamentos')}")
+    if doc_estruturada.get("credenciamento"):
+        partes_doc.append(f"CREDENCIAMENTO\n{doc_estruturada.get('credenciamento')}")
+    if doc_estruturada.get("anexos"):
+        partes_doc.append(f"ANEXOS\n{doc_estruturada.get('anexos')}")
+    documentacao_flat = "\n\n".join(partes_doc)
+
+    analise_completa = {
+        # Campos legados (UI atual lê estes nomes)
+        "fusoHorario": resumo.get("fusoHorario", ""),
+        "baseLegal": resumo.get("baseLegal", ""),
+        "enquadramentoEmpresa": resumo.get("enquadramentoEmpresa", ""),
+        "valorIntervaloLance": resumo.get("valorIntervaloLance", ""),
+        "formalizacao": resumo.get("formalizacao", ""),
+        "portal": resumo.get("portal", ""),
+        "criterioJulgamento": resumo.get("criterioJulgamento", ""),
+        "modoDisputa": resumo.get("modoDisputa", ""),
+        "dataLimiteCadastramento": resumo.get("dataLimiteCadastramento", ""),
+        "garantiaContrato": resumo.get("garantiaContrato", ""),
+        "validadeProposta": resumo.get("validadeProposta", ""),
+        "vigenciaTotalContrato": resumo.get("vigenciaTotalContrato", ""),
+        "pagamento": resumo.get("pagamento", ""),
+        "recurso": resumo.get("recurso", ""),
+        "propostaAdequada": resumo.get("propostaAdequada", ""),
+        "assinaturaContrato": resumo.get("assinaturaContrato", ""),
+        "processo": extracao.get("numero_processo", ""),
+
+        # Seções (texto longo) — nomes legados
+        "documentacao": documentacao_flat,
+        "garantiaContratoDetalhe": extracao.get("garantia_de_contrato", ""),
+        "proposta": extracao.get("proposta", ""),
+        "propostaRevisada": extracao.get("proposta_revisada", ""),
+        "habilitacaoJuridica": extracao.get("habilitacao_juridica", ""),
+        "regularidadeFiscal": extracao.get("regularidade_fiscal_trabalhista", ""),
+        "qualificacaoEconomica": extracao.get("qualificacao_economica_financeira", ""),
+        "qualificacaoTecnica": extracao.get("qualificacao_tecnica", ""),
+        "declaracoes": extracao.get("declaracoes", ""),
+        "julgamentoProposta": extracao.get("julgamento_da_proposta", ""),
+        "declaradoVencedor": extracao.get("declarado_vencedor_assinatura", ""),
+        "faturamentoEntrega": extracao.get("faturamento_entrega", ""),
+
+        # Campos novos do schema Abacherly
+        "contratacaoMaoObra": resumo.get("contratacaoMaoObra", ""),
+        "remotoOuPresencial": resumo.get("remotoOuPresencial", ""),
+        "dedicacaoExclusivaPerfis": resumo.get("dedicacaoExclusivaPerfis", ""),
+        "dataLimiteCredenciamento": resumo.get("dataLimiteCredenciamento", ""),
+        "dataLimiteEsclarecimentos": resumo.get("dataLimiteEsclarecimentos", ""),
+        "provaConceitoFlag": resumo.get("provaConceitoFlag", ""),
+        "amostra": resumo.get("amostra", ""),
+        "documentacaoEstruturada": doc_estruturada,
+        "provaDeConceito": extracao.get("prova_de_conceito", ""),
+        "garantiaDeContrato": extracao.get("garantia_de_contrato", ""),
+        "prazos": extracao.get("prazos", ""),
+        "vistoria": extracao.get("vistoria", ""),
+    }
+
     doc_ref = db.collection("licitacoes").document()
     doc_ref.set({
         "numero": extracao.get("numero", ""),
+        "numeroEdital": extracao.get("numero_edital", ""),
+        "numeroProcesso": extracao.get("numero_processo", ""),
+        "codigoConlicitacao": extracao.get("numero_conlicitacao", ""),
+        "uasg": extracao.get("uasg", ""),
+        "idPncp": extracao.get("id_pncp", ""),
         "objeto": extracao.get("objeto", ""),
         "orgao": extracao.get("orgao", ""),
         "modalidade": extracao.get("modalidade", ""),
@@ -90,9 +162,7 @@ def criar_licitacao(
         "localEntrega": extracao.get("local_entrega", ""),
         "status": "em_analise",
         "resumoIA": extracao.get("objeto_resumido", ""),
-        "codigoConlicitacao": extracao.get("codigo_conlicitacao", ""),
-        "uasg": extracao.get("uasg", ""),
-        "analise": extracao.get("analise", {}),
+        "analise": analise_completa,
         "analiseIaId": analise_id,
         "clientId": client_id,
         "criadoPor": criado_por,

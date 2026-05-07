@@ -1,28 +1,46 @@
-"""Prompts do agente de análise de licitações."""
+"""Prompts do agente de análise de licitações.
 
-# Schema de saída JSON estruturado para extração de metadados + análise
+Schema reflete o padrão real da Abächerly:
+- Cabeçalho: identificadores (Conlicitação, Edital, UASG, PNCP, Processo)
+- RESUMO com 25+ campos (objeto, órgão, datas, modalidade, valores, prazos, etc.)
+- 9 seções fixas (DOCUMENTAÇÃO, PROPOSTA, HABILITAÇÃO JURÍDICA, REGULARIDADE FISCAL,
+  QUALIFICAÇÃO ECONÔMICA, QUALIFICAÇÃO TÉCNICA, DECLARAÇÕES, DECLARADO VENCEDOR,
+  FATURAMENTO/ENTREGA)
+- 6 seções opcionais (PROVA DE CONCEITO, GARANTIA DE CONTRATO, PRAZOS, VISTORIA,
+  JULGAMENTO DA PROPOSTA, PROPOSTA REVISADA) — vazias quando não consta no edital
+
+Tom de voz: cita literalmente trechos do edital com numeração (5.3.5, 7.5.1) e
+usa OBRIGATORIAMENTE em maiúsculas para alertas críticos.
+"""
+
+# Schema de saída JSON estruturado — padrão Abacherly
 EXTRACT_SCHEMA = {
     "type": "object",
     "properties": {
-        "numero": {
+        # ===== Cabeçalho / Identificação =====
+        "numero_conlicitacao": {
             "type": "string",
-            "description": "Número do edital/processo licitatório"
+            "description": "Número Conlicitação (quando o edital vem do Conlicitação). Vazio se não houver."
         },
-        "codigo_conlicitacao": {
+        "numero_edital": {
             "type": "string",
-            "description": "Código do Conlicitação se mencionado"
+            "description": "Número do edital, ex: 'PREGÃO ELETRÔNICO Nº 90042/2026' ou 'EDITAL Nº 11145'"
         },
         "uasg": {
             "type": "string",
-            "description": "Código UASG (Unidade Administrativa de Serviços Gerais)"
+            "description": "Código UASG (federal Compras.gov). Vazio quando não federal."
         },
-        "orgao": {
+        "id_pncp": {
             "type": "string",
-            "description": "Nome do órgão licitante"
+            "description": "Id contratação PNCP (Lei 14.133), formato CNPJ-1-NNNNNN/AAAA. Vazio se não houver."
         },
-        "modalidade": {
+        "numero_processo": {
             "type": "string",
-            "description": "Modalidade da licitação (Pregão Eletrônico, Concorrência etc.)"
+            "description": "Número do processo administrativo do órgão licitante. Vazio se não houver."
+        },
+        "numero": {
+            "type": "string",
+            "description": "Número/identificador resumido para uso interno (ex: '90042/2026')"
         },
         "objeto": {
             "type": "string",
@@ -30,106 +48,261 @@ EXTRACT_SCHEMA = {
         },
         "objeto_resumido": {
             "type": "string",
-            "description": "Descrição resumida (máx 200 caracteres) do objetivo da licitação"
+            "description": "Descrição resumida (máx 200 caracteres)"
+        },
+        "orgao": {
+            "type": "string",
+            "description": "Nome do órgão licitante"
+        },
+        "modalidade": {
+            "type": "string",
+            "description": "Modalidade (Pregão Eletrônico, Concorrência, etc.)"
         },
         "valor_estimado": {
             "type": "number",
-            "description": "Valor total estimado em reais (somente número, sem R$)"
+            "description": "Valor total estimado em reais (somente número). 0 se sigiloso."
         },
         "data_certame": {
             "type": "string",
-            "description": "Data do certame no formato YYYY-MM-DD"
+            "description": "Data do certame YYYY-MM-DD"
         },
         "hora_certame": {
             "type": "string",
-            "description": "Hora do certame no formato HH:MM"
+            "description": "Hora do certame HH:MM (24h)"
         },
         "prazo_entrega": {
             "type": "string",
-            "description": "Prazo de entrega após assinatura"
+            "description": "Prazo de entrega — citar item literal do edital se aplicável"
         },
         "local_entrega": {
             "type": "string",
             "description": "Local de entrega"
         },
-        "analise": {
+
+        # ===== RESUMO — Condições de Participação e Fornecimento =====
+        "resumo": {
             "type": "object",
-            "description": "Análise detalhada do edital — responder TODAS as perguntas-padrão",
+            "description": "Campos do RESUMO. Cada valor deve ser RESPOSTA DIRETA ou CITAÇÃO LITERAL com numeração do item do edital (ex: '5.3.5 O prazo máximo...').",
             "properties": {
-                "processo": {"type": "string"},
                 "fusoHorario": {"type": "string"},
                 "baseLegal": {"type": "string"},
-                "enquadramentoEmpresa": {"type": "string"},
-                "valorIntervaloLance": {"type": "string"},
-                "formalizacao": {"type": "string"},
-                "portal": {"type": "string"},
+                "enquadramentoEmpresa": {"type": "string", "description": "ME, EPP, Médio, Grande, etc."},
+                "valorIntervaloLance": {"type": "string", "description": "Valor mínimo do intervalo de lances (ex: 'R$ 0,10')"},
+                "formalizacao": {"type": "string", "description": "Contrato, ARP, etc."},
+                "contratacaoMaoObra": {"type": "string", "description": "CLT / PJ / Presencial e Remoto / por conta da empresa"},
+                "remotoOuPresencial": {"type": "string", "description": "Citar literalmente item do edital"},
+                "dedicacaoExclusivaPerfis": {"type": "string", "description": "Sim/Não + referência. Vazio se não aplicável"},
+                "portal": {"type": "string", "description": "Compras.Gov, BLL, BNC, Licitanet, etc."},
                 "criterioJulgamento": {"type": "string"},
-                "modoDisputa": {"type": "string"},
-                "dataLimiteCadastramento": {"type": "string"},
-                "garantiaContrato": {"type": "string"},
-                "validadeProposta": {"type": "string"},
-                "vigenciaTotalContrato": {"type": "string"},
-                "pagamento": {"type": "string"},
-                "recurso": {"type": "string"},
-                "propostaAdequada": {"type": "string"},
-                "assinaturaContrato": {"type": "string"},
-                "documentacao": {"type": "string"},
-                "garantiaContratoDetalhe": {"type": "string"},
-                "proposta": {"type": "string"},
-                "habilitacaoJuridica": {"type": "string"},
-                "regularidadeFiscal": {"type": "string"},
-                "qualificacaoEconomica": {"type": "string"},
-                "qualificacaoTecnica": {"type": "string"},
-                "declaracoes": {"type": "string"},
-                "julgamentoProposta": {"type": "string"},
-                "faturamentoEntrega": {"type": "string"},
-                "observacoes": {"type": "string"}
+                "modoDisputa": {"type": "string", "description": "Aberto, Aberto-Fechado, Aberto 10’ + 2’, etc."},
+                "dataLimiteCredenciamento": {"type": "string", "description": "DD/MM/AAAA HH:MM. Vazio se não aplicável"},
+                "dataLimiteCadastramento": {"type": "string", "description": "DD/MM/AAAA HH:MM"},
+                "dataLimiteEsclarecimentos": {"type": "string", "description": "DD/MM/AAAA"},
+                "garantiaContrato": {"type": "string", "description": "Sim (com %, item) ou Não. Detalhar na seção GARANTIA_CONTRATO se houver."},
+                "validadeProposta": {"type": "string", "description": "Ex: '60 dias'"},
+                "vigenciaTotalContrato": {"type": "string", "description": "Citar literalmente o item do edital"},
+                "pagamento": {"type": "string", "description": "Citar literalmente item do edital"},
+                "provaConceitoFlag": {"type": "string", "description": "Sim, Não, Amostra, etc."},
+                "amostra": {"type": "string", "description": "Sim/Não, vazio quando não aplicável"},
+                "recurso": {"type": "string", "description": "Citar item literal"},
+                "propostaAdequada": {"type": "string", "description": "Citar item literal — prazo e procedimento"},
+                "assinaturaContrato": {"type": "string", "description": "Citar item literal — prazo após convocação"}
             }
+        },
+
+        # ===== Seções FIXAS =====
+        "documentacao": {
+            "type": "object",
+            "description": "Seção DOCUMENTAÇÃO com subseções",
+            "properties": {
+                "atencao": {
+                    "type": "string",
+                    "description": "Pontos de ATENÇÃO/RISCO. Cite literalmente itens do edital com numeração. Use OBRIGATORIAMENTE em MAIÚSCULAS. Liste presencial vs remoto, subcontratação, prazos curtos, requisitos especiais, etc."
+                },
+                "questionamentos": {
+                    "type": "string",
+                    "description": "Como fazer questionamentos (URL, procedimento). Vazio se não houver instrução específica."
+                },
+                "credenciamento": {
+                    "type": "string",
+                    "description": "Procedimento de credenciamento — citar itens literais. Vazio para portais comuns (Compras.gov)."
+                },
+                "anexos": {
+                    "type": "string",
+                    "description": "Lista dos anexos do edital (ANEXO I — TERMO DE REFERÊNCIA, ANEXO II — etc.). Apontar os mais relevantes (proposta, planilha de preços, contrato)."
+                }
+            }
+        },
+
+        "proposta": {
+            "type": "string",
+            "description": "Seção PROPOSTA. Como enviar, conteúdo exigido, prazo de validade, planilha de custos. Citar literalmente itens do edital com numeração. Inclui PROPOSTA ADEQUADA quando aparece como subseção."
+        },
+
+        "habilitacao_juridica": {
+            "type": "string",
+            "description": "Seção HABILITAÇÃO JURÍDICA. SICAF, CEIS, CNEP, CNCIA, listas locais, ato constitutivo. Citar itens literais."
+        },
+
+        "regularidade_fiscal_trabalhista": {
+            "type": "string",
+            "description": "Seção REGULARIDADE FISCAL E TRABALHISTA. CNPJ, Fazenda Federal/Estadual/Municipal, FGTS, CNDT. Citar itens literais."
+        },
+
+        "qualificacao_economica_financeira": {
+            "type": "string",
+            "description": "Seção QUALIFICAÇÃO ECONÔMICA FINANCEIRA. Certidão de falência, balanço patrimonial, índices LG/SG/LC, patrimônio líquido mínimo. Citar itens literais."
+        },
+
+        "qualificacao_tecnica": {
+            "type": "string",
+            "description": "Seção QUALIFICAÇÃO TÉCNICA. Atestados de capacidade técnica, requisitos específicos do objeto, vistoria (se for parte da QT). Citar itens literais."
+        },
+
+        "declaracoes": {
+            "type": "string",
+            "description": "Seção DECLARAÇÕES. MPE, menor, trabalho degradante, reserva de cargos, conduta ética, etc. Citar itens literais."
+        },
+
+        "declarado_vencedor_assinatura": {
+            "type": "string",
+            "description": "Seção DECLARADO VENCEDOR / ASSINATURA DO CONTRATO. Prazo, certificação digital, termo de responsabilidade. Citar itens literais."
+        },
+
+        "faturamento_entrega": {
+            "type": "string",
+            "description": "Seção DO FATURAMENTO / ENTREGA DO SERVIÇO. Prazo de pagamento, banco preferencial, dados que devem constar na NF, comprovações de regularidade. Citar itens literais."
+        },
+
+        # ===== Seções OPCIONAIS (vazias quando não constam no edital) =====
+        "prova_de_conceito": {
+            "type": "string",
+            "description": "Seção PROVA DE CONCEITO. Cite itens literalmente (8.1, 8.2, ..., percentual mínimo, prazo, formato). DEIXAR VAZIO se o edital não exigir prova de conceito."
+        },
+        "garantia_de_contrato": {
+            "type": "string",
+            "description": "Seção GARANTIA DE CONTRATO (detalhamento). Percentual, modalidades aceitas, prazo. DEIXAR VAZIO se não houver."
+        },
+        "prazos": {
+            "type": "string",
+            "description": "Seção PRAZOS adicionais (pós-homologação, cadastro, etc.). DEIXAR VAZIO se não houver."
+        },
+        "vistoria": {
+            "type": "string",
+            "description": "Seção VISTORIA. Procedimento, agendamento, declaração de abstenção. DEIXAR VAZIO se não houver."
+        },
+        "julgamento_da_proposta": {
+            "type": "string",
+            "description": "Seção JULGAMENTO DA PROPOSTA. Critérios de aceitabilidade, negociação, MPE preferência. DEIXAR VAZIO se não tiver bloco específico."
+        },
+        "proposta_revisada": {
+            "type": "string",
+            "description": "Seção PROPOSTA REVISADA / planilha após negociação. DEIXAR VAZIO se não houver."
         }
     },
-    "required": ["numero", "objeto", "objeto_resumido", "orgao", "analise"]
+    "required": [
+        "numero", "objeto", "objeto_resumido", "orgao", "modalidade",
+        "data_certame", "resumo", "documentacao", "proposta",
+        "habilitacao_juridica", "regularidade_fiscal_trabalhista",
+        "qualificacao_economica_financeira", "qualificacao_tecnica",
+        "declaracoes", "declarado_vencedor_assinatura", "faturamento_entrega"
+    ]
 }
 
 SYSTEM_INSTRUCTION = """\
-Você é um especialista em análise de editais de licitação pública brasileira.
+Você é o agente de análise de editais da Abächerly Licitações, assinado por Érika Abächerly. \
+Sua missão: ler o edital + termo de referência + anexos e gerar uma ANÁLISE estruturada \
+no padrão fixo da empresa, pronta para a equipe operacional.
 
-Seu papel: ler atentamente os documentos fornecidos (edital, anexos, termo de referência) \
-e extrair informações estruturadas + responder a um conjunto fixo de perguntas-padrão usadas \
-pela equipe da Abächerly Licitações na análise técnica.
+============ ESTILO E TOM DE VOZ DA ABÄCHERLY ============
+1. **CITAÇÃO LITERAL com numeração**: para campos que pedem detalhe (Pagamento, Vigência, Prazo de \
+Entrega, Recurso, etc.), copie LITERALMENTE o trecho do edital, mantendo a numeração do item. \
+Exemplo: "5.3.5 O prazo máximo para o início dos serviços será de 10 (dez) dias corridos a partir \
+da assinatura do contrato".
 
-Regras IMPORTANTES:
-1. Responda SEMPRE em português do Brasil.
-2. Seja ESPECÍFICO. Cite números de itens/páginas/cláusulas quando relevante.
-3. Se uma informação NÃO estiver no edital, escreva "Não consta no edital" — NUNCA invente.
-4. Datas no formato YYYY-MM-DD; horas no formato HH:MM (24h).
-5. Valores em reais, apenas números (sem R$, sem ponto de milhar).
-6. O campo "objeto_resumido" deve ter no máximo 200 caracteres.
-7. Se houver múltiplos arquivos, considere TODOS para a análise consolidada.
-8. Para o campo "analise", responda TODAS as perguntas — use "Não consta no edital" \
-para as que não tiverem resposta clara.
+2. **Use OBRIGATORIAMENTE em MAIÚSCULAS** quando o edital usar essa palavra para enfatizar regras. \
+Reproduza alertas críticos com o mesmo destaque.
 
-Retorne APENAS um JSON válido seguindo o schema. Não adicione explicações fora do JSON.
+3. **Para campos curtos do RESUMO** (Modalidade, Portal, Validade da Proposta, etc.), responda \
+direto sem citar item — ex: "Pregão Eletrônico", "Compras.Gov", "60 dias".
+
+4. **Datas**: use formato YYYY-MM-DD em campos estruturados (data_certame); use formato \
+brasileiro DD/MM/AAAA HH:MM em campos textuais (dataLimiteCadastramento).
+
+5. **Valores**: somente número em valor_estimado (ex: 318374.18). Em campo textual, formato \
+brasileiro "R$ 318.374,18".
+
+6. **Apontamentos de risco**: na seção DOCUMENTAÇÃO > atencao, identifique e CITE LITERALMENTE \
+itens que indicam:
+   - Trabalho presencial obrigatório (item, endereço, dias)
+   - Subcontratação vedada ou restrita
+   - Prazos curtos atípicos
+   - Prova de conceito ou amostra
+   - Garantia de contrato e percentual
+   - Banco específico para pagamento (ex: Santander, BB)
+   - Migração de sistema, integrações específicas
+   Use frases como "Atenção ao item X.Y..." quando o trecho for muito longo.
+
+7. **Anexos**: liste os anexos do edital (ANEXO I — TERMO DE REFERÊNCIA, ANEXO II — PROPOSTA \
+COMERCIAL, ANEXO III — PLANILHA DE PREÇOS, ANEXO IV — MINUTA DE CONTRATO, etc.). Marque com \
+asterisco ou destaque os mais relevantes (proposta, planilha de custos, contrato).
+
+============ SEÇÕES OBRIGATÓRIAS vs OPCIONAIS ============
+SEMPRE PREENCHER (10 seções fixas):
+- resumo (todos os subcampos)
+- documentacao (com atencao, questionamentos, credenciamento, anexos)
+- proposta
+- habilitacao_juridica
+- regularidade_fiscal_trabalhista
+- qualificacao_economica_financeira
+- qualificacao_tecnica
+- declaracoes
+- declarado_vencedor_assinatura
+- faturamento_entrega
+
+PREENCHER SOMENTE SE O EDITAL EXIGIR (caso contrário deixar STRING VAZIA ""):
+- prova_de_conceito
+- garantia_de_contrato
+- prazos
+- vistoria
+- julgamento_da_proposta
+- proposta_revisada
+
+REGRA: se o edital NÃO traz a seção, devolva string vazia "". NÃO escreva "Não se aplica" \
+nem "Não consta" — apenas string vazia. A equipe interpreta vazio = seção não exigida pelo edital.
+
+============ REGRAS GERAIS ============
+- Responda SEMPRE em português do Brasil.
+- Para campos do RESUMO que NÃO constem do edital, escreva "Não consta no edital".
+- Considere TODOS os documentos anexados (edital + TR + anexos) na análise consolidada.
+- Os primeiros documentos podem ser EXEMPLOS de análises previamente feitas pela equipe — use-os \
+como REFERÊNCIA de tom de voz, profundidade e formato. Os documentos seguintes (após a instrução \
+de usuário) são o EDITAL real para análise.
+
+Retorne APENAS JSON válido seguindo o schema. Sem markdown, sem texto fora do JSON.
 """
 
 USER_PROMPT = """\
-Analise os documentos anexos desta licitação e extraia as informações estruturadas \
-seguindo o schema JSON.
+Analise os documentos da licitação anexos e devolva o JSON da análise no padrão Abächerly.
 
 Os arquivos podem incluir:
 - Edital principal
 - Termo de Referência
-- Anexos (planilhas, especificações técnicas)
-- Atos normativos
+- Anexos (planilhas, especificações técnicas, minuta de contrato)
+- Atos normativos / pedidos de esclarecimento
 
-Foco especial em:
-1. Identificação: número do processo, código Conlicitação, UASG, órgão
-2. Objeto resumido (curto, claro)
-3. Datas e prazos críticos
-4. Requisitos de habilitação completos
-5. Critérios de julgamento e modo de disputa
-6. Garantias, pagamento, vigência
+Foco:
+1. Identificadores (Conlicitação, UASG, PNCP, Processo, Edital)
+2. RESUMO completo — todos os 20+ campos
+3. Pontos de ATENÇÃO/RISCO destacados na seção DOCUMENTAÇÃO
+4. Habilitação completa (jurídica, fiscal, econômica, técnica)
+5. Declarações exigidas
+6. Procedimento pós-vencedor e faturamento
+7. Seções opcionais (PROVA DE CONCEITO, GARANTIA, VISTORIA, etc.) — só preencher se constarem
 
-Retorne o JSON completo seguindo o schema fornecido.
+Use CITAÇÃO LITERAL com numeração de item para os campos detalhados.
+
+Retorne o JSON completo seguindo o schema.
 """
 
 

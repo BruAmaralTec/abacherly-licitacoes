@@ -19,7 +19,16 @@ export type Modalidade =
   | 'Dispensa'
   | 'Inexigibilidade';
 
+export interface DocumentacaoSecaoEstruturada {
+  atencao?: string;
+  questionamentos?: string;
+  credenciamento?: string;
+  anexos?: string;
+}
+
 export interface AnaliseEdital {
+  // === Campos legados usados pela UI atual /licitacoes/[id]/analise ===
+  // Resumo (campos planos)
   processo?: string;
   fusoHorario?: string;
   baseLegal?: string;
@@ -37,6 +46,8 @@ export interface AnaliseEdital {
   recurso?: string;
   propostaAdequada?: string;
   assinaturaContrato?: string;
+
+  // Seções (textos longos)
   documentacao?: string;
   garantiaContratoDetalhe?: string;
   proposta?: string;
@@ -50,11 +61,35 @@ export interface AnaliseEdital {
   declaradoVencedor?: string;
   faturamentoEntrega?: string;
   observacoes?: string;
+
+  // === Campos novos do schema Abacherly (preenchidos pelo agente IA) ===
+  // Mais campos do RESUMO
+  contratacaoMaoObra?: string;
+  remotoOuPresencial?: string;
+  dedicacaoExclusivaPerfis?: string;
+  dataLimiteCredenciamento?: string;
+  dataLimiteEsclarecimentos?: string;
+  provaConceitoFlag?: string;
+  amostra?: string;
+
+  // DOCUMENTAÇÃO estruturada (subseções)
+  documentacaoEstruturada?: DocumentacaoSecaoEstruturada;
+
+  // Seções opcionais novas
+  provaDeConceito?: string;
+  garantiaDeContrato?: string;
+  prazos?: string;
+  vistoria?: string;
 }
 
 export interface Licitacao {
   id?: string;
   numero: string;
+  numeroEdital?: string;
+  numeroProcesso?: string;
+  codigoConlicitacao?: string;
+  uasg?: string;
+  idPncp?: string;
   objeto: string;
   orgao: string;
   modalidade: Modalidade | string;
@@ -74,6 +109,7 @@ export interface Licitacao {
   modoDisputa?: string;
   srp?: boolean;
   analise?: AnaliseEdital;
+  analiseIaId?: string;
   clientId: string;
   criadoPor: string;
   criadoEm: Timestamp;

@@ -41,6 +41,14 @@ service firebase.storage {
       return isCliente() && userClientId() == clientId;
     }
 
+    // Cadastro do cliente (cartão CNPJ etc.) — só equipe escreve, qualquer
+    // user autenticado pode ler. Esse path é manipulado apenas pela equipe via
+    // o painel /admin/clientes; conteúdo é dado público da Receita Federal.
+    // Regra simples (apenas auth) evita falhas com firestore.get cross-service.
+    match /clientes/{clientId}/cadastro/{file=**} {
+      allow read, write: if isSignedIn();
+    }
+
     // Documentos / certidões do cliente
     match /clientes/{clientId}/{type}/{file=**} {
       allow read: if isEquipe() || isOwner(clientId);
