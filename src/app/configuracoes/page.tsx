@@ -18,7 +18,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import { PageSkeleton } from '@/components/Skeleton';
 import Footer from '@/components/Footer';
-import { buscarConfig, salvarConfig, ConfigSistema } from '@/lib/services/configuracoes';
+import {
+  buscarConfig,
+  salvarConfig,
+  ConfigSistema,
+  MODELO_GEMINI_DEFAULT,
+  MODELOS_GEMINI_SUGERIDOS,
+} from '@/lib/services/configuracoes';
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
@@ -42,7 +48,9 @@ export default function ConfiguracoesPage() {
   const [agente, setAgente] = useState<ConfigSistema>({
     retencaoMesesAgente: 6,
     agentUrl: '',
+    modeloGemini: MODELO_GEMINI_DEFAULT,
   });
+  const [modeloCustom, setModeloCustom] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [feedback, setFeedback] = useState('');
 
@@ -83,6 +91,7 @@ export default function ConfiguracoesPage() {
         {
           retencaoMesesAgente: Number(agente.retencaoMesesAgente) || 6,
           agentUrl: agente.agentUrl || '',
+          modeloGemini: (agente.modeloGemini || MODELO_GEMINI_DEFAULT).trim(),
         },
         userProfile.uid
       );
@@ -136,6 +145,62 @@ export default function ConfiguracoesPage() {
               </div>
 
               <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <label className="font-medium text-[#1a2b45] block mb-1">
+                    Modelo do Gemini
+                  </label>
+                  <p className="text-xs text-[#1a2b45]/60 mb-2">
+                    Modelo usado pelo agente IA na análise de editais e extração de cartão CNPJ.
+                    Padrão: <code>{MODELO_GEMINI_DEFAULT}</code>. Mudanças entram em vigor na próxima
+                    chamada (sem redeploy).
+                  </p>
+
+                  {!modeloCustom ? (
+                    <select
+                      value={
+                        MODELOS_GEMINI_SUGERIDOS.some((m) => m.value === agente.modeloGemini)
+                          ? agente.modeloGemini
+                          : '__custom__'
+                      }
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setModeloCustom(true);
+                        } else {
+                          setAgente({ ...agente, modeloGemini: e.target.value });
+                        }
+                      }}
+                      className="w-full max-w-xl"
+                    >
+                      {MODELOS_GEMINI_SUGERIDOS.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label}
+                        </option>
+                      ))}
+                      <option value="__custom__">— Outro modelo (digitar nome) —</option>
+                    </select>
+                  ) : (
+                    <div className="flex gap-2 max-w-xl">
+                      <input
+                        type="text"
+                        value={agente.modeloGemini || ''}
+                        onChange={(e) => setAgente({ ...agente, modeloGemini: e.target.value })}
+                        placeholder="ex: gemini-3.0-flash"
+                        className="flex-1"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModeloCustom(false);
+                          setAgente({ ...agente, modeloGemini: MODELO_GEMINI_DEFAULT });
+                        }}
+                        className="btn-secondary text-sm px-3"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <label className="font-medium text-[#1a2b45] block mb-1">
                     Retenção de arquivos (meses)

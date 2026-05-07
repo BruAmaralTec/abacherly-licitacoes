@@ -13,7 +13,7 @@ from vertexai.generative_models import (
 )
 
 from config import GCP_PROJECT, GCP_LOCATION, GEMINI_MODEL
-from firestore_db import listar_exemplos_treinamento
+from firestore_db import get_config_modelo_gemini, listar_exemplos_treinamento
 from prompts import (
     CNPJ_SCHEMA,
     CNPJ_SYSTEM_INSTRUCTION,
@@ -35,6 +35,11 @@ def _ensure_init() -> None:
     if not _initialized:
         vertex_init(project=GCP_PROJECT, location=GCP_LOCATION)
         _initialized = True
+
+
+def _modelo_atual() -> str:
+    """Modelo Gemini efetivo: Firestore > env var > default código."""
+    return get_config_modelo_gemini(default=GEMINI_MODEL)
 
 
 def _carregar_exemplos() -> list[Part]:
@@ -89,7 +94,7 @@ def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
         )
 
     model = GenerativeModel(
-        model_name=GEMINI_MODEL,
+        model_name=_modelo_atual(),
         system_instruction=system,
     )
 
@@ -130,7 +135,7 @@ def extrair_cartao_cnpj(conteudo: bytes, mime_type: str) -> dict[str, Any]:
     _ensure_init()
 
     model = GenerativeModel(
-        model_name=GEMINI_MODEL,
+        model_name=_modelo_atual(),
         system_instruction=CNPJ_SYSTEM_INSTRUCTION,
     )
 

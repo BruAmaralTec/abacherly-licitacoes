@@ -112,6 +112,25 @@ def get_config_retencao_meses() -> int:
     return int(data.get("retencaoMesesAgente", 6))
 
 
+def get_config_modelo_gemini(default: str) -> str:
+    """Lê o modelo Gemini configurado no Firestore.
+
+    Precedência: Firestore (configuracoes/sistema.modeloGemini) > parâmetro default.
+    Falha silenciosa retorna default — agente continua funcionando se Firestore cair.
+    """
+    try:
+        db = get_db()
+        snap = db.collection("configuracoes").document("sistema").get()
+        if not snap.exists:
+            return default
+        data = snap.to_dict() or {}
+        modelo = (data.get("modeloGemini") or "").strip()
+        return modelo if modelo else default
+    except Exception as exc:
+        logger.warning("falha ao ler modelo Gemini do Firestore: %s — usando default %s", exc, default)
+        return default
+
+
 def listar_exemplos_treinamento() -> list[dict[str, Any]]:
     """Lista os exemplos de análise (few-shot reference) cadastrados pelo admin.
 

@@ -4,8 +4,9 @@ import os
 GCP_PROJECT = os.environ.get("GCP_PROJECT", "abacherly-licitacoes")
 GCP_LOCATION = os.environ.get("GCP_LOCATION", "us-central1")
 
-# Modelo Gemini — Pro para análise documental longa
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash-001")
+# Modelo Gemini — default do código. Pode ser sobrescrito via env var ou
+# via Firestore (configuracoes/sistema.modeloGemini, lido a cada chamada).
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 # Bucket GCS dedicado a inputs do agente (lifecycle 6 meses configurado fora)
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "abacherly-analises")
