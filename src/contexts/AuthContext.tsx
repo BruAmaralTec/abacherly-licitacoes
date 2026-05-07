@@ -132,15 +132,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
         }
 
-        try {
-          // 1. Tentativa primária: doc/users/{uid}
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          let snap = await getDoc(userDocRef);
-          let data: any = snap.exists() ? snap.data() : null;
+        // Retry helper para o caso de "client is offline" durante warm-up
+        const tryFetchProfile = async (tentativa = 1): Promise<any | null> => {
+          try {
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const snap = await getDoc(userDocRef);
+            if (snap.exists()) return snap.data();
 
-          // 2. Fallback: se não achou por uid, busca por email (auto-cura para
-          //    docs legados criados antes da migração de IDs)
-          if (!data) {
+            // Fallback: busca por email (auto-cura para docs legados)
             const q = query(
               collection(db, 'users'),
               where('email', '==', firebaseUser.email)
@@ -148,20 +147,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const result = await getDocs(q);
             if (!result.empty) {
               const legacyDoc = result.docs[0];
-              data = legacyDoc.data();
-              // Migra: cria doc com UID correto e remove o antigo
-              await setDoc(userDocRef, {
-                ...data,
-                role: normalizarRole(data.role),
-                lastLogin: Timestamp.now(),
-              });
-              if (legacyDoc.id !== firebaseUser.uid) {
-                try { await deleteDoc(legacyDoc.ref); } catch {}
-              }
-              console.log('[Auth] doc legado migrado para uid', firebaseUser.uid);
+              const legacyData = legacyDoc.data();
+              try {
+                await setDoc(userDocRef, {
+                  ...legacyData,
+                  role: normalizarRole(legacyData.role),
+                  lastLogin: Timestamp.now(),
+                });
+                if (legacyDoc.id !== firebaseUser.uid) {
+                  try { await deleteDoc(legacyDoc.ref); } catch {}
+                }
+                console.log('[Auth] doc legado migrado para uid', firebaseUser.uid);
+              } catch {}
+              return legacyData;
             }
+            return null;
+          } catch (err: any) {
+            const isOffline = String(err?.code || err?.message || '').includes('offline');
+            if (isOffline && tentativa < 3) {
+              console.warn(`[Auth] tentativa ${tentativa} falhou (offline), retentando em ${tentativa * 500}ms`);
+              await new Promise((r) => setTimeout(r, tentativa * 500));
+              return tryFetchProfile(tentativa + 1);
+            }
+            throw err;
           }
+        };
 
+        try {
+          const data = await tryFetchProfile();
           if (data) {
             const profile: UserProfile = {
               uid: firebaseUser.uid,
@@ -173,7 +186,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserProfile(profile);
             setCachedProfile(profile);
           } else {
-            // Nenhum doc encontrado nem por uid nem por email — fallback mínimo (analista)
             const fallback: UserProfile = {
               uid: firebaseUser.uid,
               email: firebaseUser.email,
@@ -184,7 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setCachedProfile(fallback);
           }
         } catch (error) {
-          console.error('[Auth] Erro ao buscar perfil:', error);
+          console.error('[Auth] Erro ao buscar perfil (todas tentativas):', error);
           if (!getCachedProfile()) {
             setUserProfile({
               uid: firebaseUser.uid,

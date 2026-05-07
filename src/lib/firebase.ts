@@ -1,6 +1,13 @@
-import { initializeApp, getApps } from 'firebase/app';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  getFirestore,
+  Firestore,
+  CACHE_SIZE_UNLIMITED,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -12,11 +19,29 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:1036949086437:web:79d2c554503a7bb327f40c",
 };
 
-// Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
+// Firestore: força auto-detect de long-polling. WebSockets podem ser bloqueados
+// por proxies corporativos / antivírus / extensões — long-polling sempre passa.
+// experimentalAutoDetectLongPolling testa WebSocket primeiro e cai pra HTTP se falhar.
+let dbInstance: Firestore;
+try {
+  dbInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    localCache: typeof window !== 'undefined'
+      ? persistentLocalCache({
+          cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+          tabManager: persistentMultipleTabManager(),
+        })
+      : undefined,
+  });
+} catch {
+  // Se já foi inicializado em outro lugar (HMR), reusa
+  dbInstance = getFirestore(app);
+}
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = dbInstance;
 export const storage = getStorage(app);
 
 export default app;
