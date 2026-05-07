@@ -11,12 +11,19 @@ export interface ConfigSistema {
 
 export const MODELO_GEMINI_DEFAULT = 'gemini-2.5-flash';
 
+// Lista atualizada em maio/2026. Manter só >= 2.5; modelos 1.5 e 2.0 estão
+// em retirada (Google: gemini-2.0-flash-001 só p/ clientes existentes desde
+// 2026-03-06). Atualizar quando o Google lançar novas versões estáveis.
 export const MODELOS_GEMINI_SUGERIDOS = [
-  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (recomendado — rápido + multimodal)' },
-  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (mais inteligente, mais lento/caro)' },
-  { value: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash (geração anterior)' },
-  { value: 'gemini-1.5-pro-002', label: 'Gemini 1.5 Pro (estável — fallback)' },
-  { value: 'gemini-1.5-flash-002', label: 'Gemini 1.5 Flash (estável — mais rápido)' },
+  // Geração 3 (preview — nem todos os projetos GCP têm acesso liberado)
+  { value: 'gemini-3.1-pro', label: 'Gemini 3.1 Pro (preview — raciocínio mais avançado, 1M context)' },
+  { value: 'gemini-3-flash', label: 'Gemini 3 Flash (preview — próximo flash, multimodal + agentic)' },
+  { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite (preview — mais barato/rápido)' },
+
+  // Geração 2.5 (estável — recomendado para produção)
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (recomendado — estável, rápido, multimodal)' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (estável — mais inteligente, mais lento/caro)' },
+  { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite (estável — escala/baixa latência)' },
 ];
 
 const DEFAULT: ConfigSistema = {
