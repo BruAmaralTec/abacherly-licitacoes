@@ -273,6 +273,16 @@ a:hover {
   font-style: italic;
 }
 
+/* CampoLongo (contentEditable) — texto justificado, leitura confortável.
+   O backend retorna parágrafos separados por \n\n; whitespace-pre-wrap preserva
+   as quebras e a leading-7 dá respiração entre linhas. */
+.campo-longo {
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
 /* Print styles - Análise do Edital */
 @media print {
   body {

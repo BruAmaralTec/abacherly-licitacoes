@@ -246,33 +246,33 @@ export default function AnalisePage() {
         </div>
 
         {/* Documento — tela mostra só a aba ativa, impressão mostra todas empilhadas */}
-        <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 print:p-0">
+        <main className="flex-1 w-full p-4 sm:p-6 lg:p-10 print:p-0">
           <div
             ref={printRef}
-            className="max-w-[900px] mx-auto bg-white shadow-lg print:shadow-none rounded-lg print:rounded-none"
+            className="w-full max-w-7xl print:max-w-none mx-auto bg-white shadow-lg print:shadow-none rounded-lg print:rounded-none"
           >
-            <div className="p-8 sm:p-12 print:p-[2cm] space-y-8 text-[#1a2b45] text-sm leading-relaxed">
-              {/* Cabeçalho — sempre visível na tela e na impressão */}
-              <div className="border-b-2 border-[#d64b16] pb-6 flex items-center justify-between gap-4">
-                <div className="text-left">
-                  <h1 className="text-2xl font-bold text-[#2c4a70] tracking-wide">
+            <div className="p-6 sm:p-10 lg:p-14 print:p-[2cm] space-y-8 text-[#1a2b45] text-[15px] leading-relaxed">
+              {/* Cabeçalho — logo à ESQUERDA, título à direita */}
+              <div className="border-b-2 border-[#d64b16] pb-6 flex items-center gap-6">
+                <Image
+                  src="/images/logo-azul.png"
+                  alt="Abächerly Licitações"
+                  width={500}
+                  height={500}
+                  priority
+                  className="w-auto h-32 sm:h-40 lg:h-44 print:h-32 flex-shrink-0"
+                />
+                <div className="flex-1 text-right">
+                  <h1 className="text-3xl lg:text-4xl font-bold text-[#2c4a70] tracking-wide">
                     ANÁLISE DO EDITAL
                   </h1>
-                  <p className="text-base text-[#1a2b45]/80 mt-2">
+                  <p className="text-lg text-[#1a2b45]/80 mt-3">
                     Nº Conlicitação{' '}
                     <span className="font-bold">
                       {licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—'}
                     </span>
                   </p>
                 </div>
-                <Image
-                  src="/images/logo-azul.png"
-                  alt="Abächerly Licitações"
-                  width={400}
-                  height={400}
-                  priority
-                  className="w-auto h-24 sm:h-28 print:h-24 flex-shrink-0"
-                />
               </div>
 
               {/* Título do edital — sempre */}
@@ -752,7 +752,7 @@ function CampoLongo({
       suppressContentEditableWarning
       data-placeholder={placeholder}
       onBlur={(e) => onChange(e.currentTarget.textContent || '')}
-      className={`campo-longo px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent min-h-[60px] whitespace-pre-wrap break-words print:border-none print:p-0 print:min-h-0 ${
+      className={`campo-longo px-4 py-3 text-[15px] leading-7 border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent min-h-[80px] whitespace-pre-wrap break-words print:border-none print:p-0 print:min-h-0 ${
         readOnly ? 'cursor-default' : ''
       }`}
       style={{ wordBreak: 'break-word' }}

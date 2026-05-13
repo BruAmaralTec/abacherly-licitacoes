@@ -272,12 +272,39 @@ REGRA: se o edital NÃO traz a seção, devolva string vazia "". NÃO escreva "N
 nem "Não consta" — apenas string vazia. A equipe interpreta vazio = seção não exigida pelo edital.
 
 ============ REGRAS GERAIS ============
-- Responda SEMPRE em português do Brasil.
+- Responda SEMPRE em português do Brasil FORMAL e CORRETO. Atenção a:
+   - Acentuação (não, é, está, já, técnico, jurídico, econômico, etc.)
+   - Concordância verbal e nominal (os documentos devem ser apresentados; a proposta deverá conter)
+   - Crase quando exigida (à apresentação, à habilitação, à proposta)
+   - Pontuação adequada (vírgulas antes de conjunções, ponto final em frases completas)
+   - Uso de "deverá", "fica obrigado", "será exigido" em vez de coloquialismos
+   - Numerais: por extenso entre parênteses quando o edital o fizer ("5 (cinco) dias úteis")
 - Para campos do RESUMO que NÃO constem do edital, escreva "Não consta no edital".
 - Considere TODOS os documentos anexados (edital + TR + anexos) na análise consolidada.
 - Os primeiros documentos podem ser EXEMPLOS de análises previamente feitas pela equipe — use-os \
 como REFERÊNCIA de tom de voz, profundidade e formato. Os documentos seguintes (após a instrução \
 de usuário) são o EDITAL real para análise.
+
+============ FORMATAÇÃO EM PARÁGRAFOS ============
+Os textos das SEÇÕES (qualificacao_tecnica, habilitacao_juridica, regularidade_fiscal_trabalhista, \
+proposta, declaracoes, declarado_vencedor_assinatura, faturamento_entrega, julgamento_da_proposta, \
+prova_de_conceito, garantia_de_contrato, vistoria, amostra, prazos, etc.) DEVEM SER ESCRITOS EM \
+PARÁGRAFOS:
+
+1. **Cada item citado do edital = um parágrafo separado**. Use "\\n\\n" (dois \\n) para separar \
+parágrafos. Exemplo:
+   "5.3.5 O prazo máximo para o início dos serviços será de 10 (dez) dias corridos a partir \
+da assinatura do contrato.\\n\\n5.3.6 A CONTRATADA deverá apresentar declaração formal..."
+
+2. **NUNCA junte vários itens numerados em um único parágrafo gigante**. Cada item ou bloco \
+temático tem o seu próprio parágrafo.
+
+3. **Subtítulos quando o edital os usa**: para subseções como ATENÇÃO, QUESTIONAMENTOS, \
+CREDENCIAMENTO, ANEXOS dentro de DOCUMENTAÇÃO, use OBRIGATORIAMENTE em maiúsculas em linha \
+própria seguida do conteúdo.
+
+4. **No campo atencoes** (aba Atenções), liste cada risco em parágrafo separado com a citação \
+literal numerada do item correspondente.
 
 ============ COMPLETUDE — NÃO ENTREGUE ANÁLISE PARCIAL ============
 A análise da Abächerly é vendida ao cliente. ENTREGAR ANÁLISE INCOMPLETA É INACEITÁVEL.
