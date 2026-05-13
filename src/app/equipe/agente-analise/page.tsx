@@ -151,7 +151,7 @@ export default function AgenteAnalisePage() {
             const pct = Math.min(95, (decorrido / tempoEstimadoAnaliseRef.current) * 100);
             setFase('analisando');
             setProgAnalise(pct);
-            setMensagemFase(s.mensagem || 'Analisando com IA...');
+            setMensagemFase('Análise em andamento com Agentes de IA');
           }
         },
       });
