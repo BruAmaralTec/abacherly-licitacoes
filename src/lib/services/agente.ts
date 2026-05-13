@@ -11,6 +11,9 @@ export interface AnaliseResponse {
   analise_id: string;
   licitacao_id?: string | null;
   status: 'processando' | 'concluida' | 'erro';
+  fase?: 'convertendo' | 'analisando' | null;
+  progresso_conversao?: number | null;
+  mensagem?: string | null;
   extracao?: {
     numero?: string;
     codigo_conlicitacao?: string;
@@ -65,21 +68,30 @@ export async function buscarStatusAnalise(analiseId: string): Promise<AnaliseRes
   return res.json();
 }
 
-/** Polls until status != processando. Default timeout 15min — análises com
- *  edital grande + few-shot extenso podem demorar 5-10min com Gemini.
- *  Cloud Run timeout do background é 540s (9min), então 15min é folga segura. */
+/** Polls until status != processando.
+ *  - intervaloMs padrão: 2s (suficiente pra mostrar progresso na UI)
+ *  - timeoutMs padrão: 15min (Cloud Run timeout do background é 540s)
+ *  - onProgress: callback a cada poll com a resposta completa (fase, %, mensagem)
+ */
 export async function aguardarAnalise(
   analiseId: string,
-  opts: { intervaloMs?: number; timeoutMs?: number } = {}
+  opts: {
+    intervaloMs?: number;
+    timeoutMs?: number;
+    onProgress?: (status: AnaliseResponse) => void;
+  } = {}
 ): Promise<AnaliseResponse> {
-  const intervalo = opts.intervaloMs ?? 5000;
+  const intervalo = opts.intervaloMs ?? 2000;
   const timeout = opts.timeoutMs ?? 15 * 60 * 1000;
   const inicio = Date.now();
 
   while (Date.now() - inicio < timeout) {
     const r = await buscarStatusAnalise(analiseId);
+    opts.onProgress?.(r);
     if (r.status !== 'processando') return r;
     await new Promise((res) => setTimeout(res, intervalo));
   }
-  throw new Error('A análise ainda está em processamento — acompanhe pela lista de licitações em /licitacoes em alguns minutos.');
+  throw new Error(
+    'A análise ainda está em processamento — acompanhe pela lista de licitações em /licitacoes em alguns minutos.'
+  );
 }

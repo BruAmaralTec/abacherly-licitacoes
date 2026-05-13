@@ -3,7 +3,7 @@
 Endpoints:
   GET  /health                -> healthcheck
   POST /analise               -> upload de arquivos + criação de licitação + análise IA
-  GET  /analise/{id}          -> status e resultado
+  GET  /analise/{id}          -> status, fase, progresso e resultado
 """
 from __future__ import annotations
 
@@ -15,7 +15,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile, BackgroundTa
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from config import ACCEPTED_MIMES, CORS_ORIGINS, MAX_FILE_SIZE
+from config import CORS_ORIGINS, MAX_FILE_SIZE
+from conversor import (
+    CONVERSIVEL_MIMES,
+    GEMINI_MIMES_DIRETOS,
+    converter_para_pdf,
+    normalizar_mime,
+    precisa_converter,
+)
 from firestore_db import (
     atualizar_analise,
     buscar_analise,
@@ -23,12 +30,12 @@ from firestore_db import (
     criar_licitacao,
 )
 from gemini_client import analisar_arquivos, extrair_cartao_cnpj
-from storage_gcs import baixar_para_memoria, upload_arquivo
+from storage_gcs import upload_arquivo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("agent")
 
-app = FastAPI(title="Abächerly Agent", version="1.0.0")
+app = FastAPI(title="Abächerly Agent", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,6 +50,9 @@ class AnaliseResponse(BaseModel):
     analise_id: str
     licitacao_id: str | None = None
     status: str
+    fase: str | None = None
+    progresso_conversao: int | None = None
+    mensagem: str | None = None
     extracao: dict[str, Any] | None = None
     erro: str | None = None
 
@@ -70,23 +80,18 @@ async def criar_analise_endpoint(
         conteudo = await upload.read()
         if len(conteudo) > MAX_FILE_SIZE:
             raise HTTPException(413, f"Arquivo {upload.filename} excede {MAX_FILE_SIZE} bytes")
-        mime = upload.content_type or "application/octet-stream"
-        if mime not in ACCEPTED_MIMES:
-            # Word não é aceito pelo Vertex AI Gemini — orienta o usuário a converter.
-            if mime in ("application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
-                raise HTTPException(
-                    415,
-                    f"Arquivo {upload.filename}: Word (.doc/.docx) não é suportado. "
-                    "Converta para PDF antes de enviar.",
-                )
+        nome = (upload.filename or "arquivo").replace("/", "_").replace("\\", "_")
+        mime_raw = upload.content_type or "application/octet-stream"
+        mime = normalizar_mime(mime_raw, nome)
+
+        # Aceita tudo que o Gemini lê direto OU que conseguimos converter.
+        if mime not in GEMINI_MIMES_DIRETOS and mime not in CONVERSIVEL_MIMES:
             raise HTTPException(
                 415,
-                f"Arquivo {upload.filename}: formato {mime} não é suportado. "
-                "Use PDF, imagem (PNG/JPG) ou texto (.txt).",
+                f"Arquivo {nome}: formato {mime_raw} não é suportado. Tipos aceitos: "
+                "PDF, PNG, JPG, TXT, Word, Excel, PowerPoint, ODF, RTF, HTML, CSV.",
             )
 
-        # Sanitização básica do filename
-        nome = (upload.filename or "arquivo").replace("/", "_").replace("\\", "_")
         uri = upload_arquivo(analise_id_temp, nome, conteudo, mime)
         arquivos_uri.append(uri)
         arquivos_processados.append((nome, conteudo, mime))
@@ -97,7 +102,6 @@ async def criar_analise_endpoint(
         arquivos_uri=arquivos_uri,
     )
 
-    # Processa em background — retorna imediatamente
     background.add_task(
         _processar_analise,
         analise_id=analise_id,
@@ -106,7 +110,7 @@ async def criar_analise_endpoint(
         arquivos=arquivos_processados,
     )
 
-    return AnaliseResponse(analise_id=analise_id, status="processando")
+    return AnaliseResponse(analise_id=analise_id, status="processando", fase="convertendo")
 
 
 class CNPJResponse(BaseModel):
@@ -121,9 +125,19 @@ async def extrair_cnpj_endpoint(
     conteudo = await arquivo.read()
     if len(conteudo) > MAX_FILE_SIZE:
         raise HTTPException(413, f"Arquivo excede {MAX_FILE_SIZE} bytes")
-    mime = arquivo.content_type or "application/pdf"
-    if mime not in ACCEPTED_MIMES:
-        logger.warning("mime não-listado %s para cartão CNPJ — aceitando mesmo assim", mime)
+    nome = arquivo.filename or "cnpj"
+    mime = normalizar_mime(arquivo.content_type or "application/pdf", nome)
+
+    # Cartão CNPJ vem em PDF/imagem geralmente — converter office se vier.
+    if mime not in GEMINI_MIMES_DIRETOS:
+        if mime in CONVERSIVEL_MIMES:
+            try:
+                conteudo, _ = converter_para_pdf(conteudo, nome)
+                mime = "application/pdf"
+            except RuntimeError as exc:
+                raise HTTPException(415, f"Falha ao converter {nome}: {exc}")
+        else:
+            raise HTTPException(415, f"Formato não suportado: {mime}")
 
     try:
         dados = extrair_cartao_cnpj(conteudo, mime)
@@ -143,6 +157,9 @@ async def buscar_analise_endpoint(analise_id: str) -> AnaliseResponse:
         analise_id=analise_id,
         licitacao_id=doc.get("licitacaoId"),
         status=doc.get("status", "processando"),
+        fase=doc.get("fase"),
+        progresso_conversao=doc.get("progressoConversao"),
+        mensagem=doc.get("mensagem"),
         extracao=doc.get("extracao"),
         erro=doc.get("erro"),
     )
@@ -154,10 +171,65 @@ def _processar_analise(
     criado_por: str,
     arquivos: list[tuple[str, bytes, str]],
 ) -> None:
-    """Job background: chama Gemini, cria licitação, atualiza doc analise."""
+    """Job background: converte office para PDF, chama Gemini, cria licitação."""
     try:
-        logger.info("[%s] iniciando análise com %d arquivos", analise_id, len(arquivos))
-        extracao = analisar_arquivos(arquivos)
+        # ============ FASE 1: Conversão dos arquivos office ============
+        a_converter = [a for a in arquivos if precisa_converter(a[2], a[0])]
+        total_conversao = len(a_converter)
+        arquivos_finais: list[tuple[str, bytes, str]] = []
+        idx_conv = 0
+
+        if total_conversao > 0:
+            atualizar_analise(
+                analise_id,
+                {
+                    "fase": "convertendo",
+                    "progressoConversao": 0,
+                    "mensagem": f"Convertendo {total_conversao} arquivo(s) para PDF...",
+                },
+            )
+
+        for nome, conteudo, mime in arquivos:
+            if precisa_converter(mime, nome):
+                idx_conv += 1
+                atualizar_analise(
+                    analise_id,
+                    {
+                        "fase": "convertendo",
+                        "progressoConversao": int(((idx_conv - 1) / total_conversao) * 100),
+                        "mensagem": f"Convertendo {nome} ({idx_conv}/{total_conversao})...",
+                    },
+                )
+                try:
+                    pdf_bytes, pdf_nome = converter_para_pdf(conteudo, nome)
+                    arquivos_finais.append((pdf_nome, pdf_bytes, "application/pdf"))
+                except RuntimeError as exc:
+                    logger.exception("[%s] falha convertendo %s: %s", analise_id, nome, exc)
+                    raise
+            else:
+                arquivos_finais.append((nome, conteudo, mime))
+
+        if total_conversao > 0:
+            atualizar_analise(
+                analise_id,
+                {
+                    "fase": "analisando",
+                    "progressoConversao": 100,
+                    "mensagem": "Conversão concluída. Iniciando análise com IA...",
+                },
+            )
+        else:
+            atualizar_analise(
+                analise_id,
+                {
+                    "fase": "analisando",
+                    "mensagem": "Analisando com IA (Gemini)...",
+                },
+            )
+
+        # ============ FASE 2: Análise IA ============
+        logger.info("[%s] iniciando análise com %d arquivos", analise_id, len(arquivos_finais))
+        extracao = analisar_arquivos(arquivos_finais)
         logger.info("[%s] extração concluída: %s", analise_id, extracao.get("numero", "?"))
 
         licitacao_id = criar_licitacao(
@@ -167,15 +239,19 @@ def _processar_analise(
             analise_id=analise_id,
         )
 
-        atualizar_analise(analise_id, {
-            "status": "concluida",
-            "extracao": extracao,
-            "licitacaoId": licitacao_id,
-        })
+        atualizar_analise(
+            analise_id,
+            {
+                "status": "concluida",
+                "fase": None,
+                "mensagem": None,
+                "extracao": extracao,
+                "licitacaoId": licitacao_id,
+            },
+        )
         logger.info("[%s] concluída — licitação %s", analise_id, licitacao_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("[%s] erro: %s", analise_id, exc)
-        # Mensagens amigáveis para erros conhecidos do Vertex AI Gemini.
         msg = str(exc)
         if "Publisher Model" in msg and "not found" in msg:
             msg = (
@@ -185,10 +261,17 @@ def _processar_analise(
             )
         elif "mimeType" in msg and "not supported" in msg:
             msg = (
-                "Algum arquivo enviado tem formato não suportado pelo Gemini. "
-                "Use somente PDF, PNG, JPG ou TXT."
+                "Algum arquivo tem formato que o Gemini não aceita mesmo após conversão. "
+                "Tente reenviar como PDF."
             )
-        atualizar_analise(analise_id, {
-            "status": "erro",
-            "erro": msg[:500],
-        })
+        elif "Falha ao converter" in msg or "Conversão de" in msg:
+            # Mensagem do conversor já é user-friendly
+            pass
+        atualizar_analise(
+            analise_id,
+            {
+                "status": "erro",
+                "fase": None,
+                "erro": msg[:500],
+            },
+        )

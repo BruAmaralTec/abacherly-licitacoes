@@ -7,9 +7,18 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# Dependências de sistema mínimas (libpq não necessária; PDF parsing fica no Gemini)
+# Dependências de sistema:
+#  - curl: healthcheck
+#  - libreoffice-{writer,calc,impress}: converter docx/xlsx/pptx/odf/rtf/html para PDF
+#  - fonts-noto-core + fonts-dejavu-core: cobertura de glifos pt-BR e símbolos
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        libreoffice-writer \
+        libreoffice-calc \
+        libreoffice-impress \
+        fonts-noto-core \
+        fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./

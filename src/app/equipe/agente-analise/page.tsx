@@ -34,6 +34,14 @@ export default function AgenteAnalisePage() {
   const [erro, setErro] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Progresso da conversão/análise (alimentado por onProgress do polling)
+  const [fase, setFase] = useState<'convertendo' | 'analisando' | null>(null);
+  const [progConv, setProgConv] = useState<number>(0);
+  const [progAnalise, setProgAnalise] = useState<number>(0);
+  const [mensagemFase, setMensagemFase] = useState<string>('');
+  const tempoInicioAnaliseRef = useRef<number | null>(null);
+  const tempoEstimadoAnaliseRef = useRef<number>(120000); // 2min default
+
   useEffect(() => {
     if (!loading && !user) router.push('/login');
     if (!loading && userProfile && !isEquipe) router.push('/dashboard');
@@ -68,21 +76,7 @@ export default function AgenteAnalisePage() {
 
   function adicionarArquivos(novos: FileList | null) {
     if (!novos) return;
-    const lista = Array.from(novos);
-    const wordTypes = [
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ];
-    const word = lista.filter((f) => wordTypes.includes(f.type) || /\.docx?$/i.test(f.name));
-    const validos = lista.filter((f) => !wordTypes.includes(f.type) && !/\.docx?$/i.test(f.name));
-    if (word.length > 0) {
-      setErro(
-        `Word (.doc/.docx) não é suportado pelo Gemini. Converta para PDF antes: ${word
-          .map((w) => w.name)
-          .join(', ')}`
-      );
-    }
-    setArquivos((prev) => [...prev, ...validos]);
+    setArquivos((prev) => [...prev, ...Array.from(novos)]);
   }
 
   function removerArquivo(idx: number) {
@@ -105,6 +99,16 @@ export default function AgenteAnalisePage() {
     }
     setErro('');
     setEtapa('enviando');
+    setFase(null);
+    setProgConv(0);
+    setProgAnalise(0);
+    setMensagemFase('');
+
+    // Estimativa de tempo da análise: 60s base + 20s/MB de arquivos
+    const tamanhoTotalMB = arquivos.reduce((s, f) => s + f.size, 0) / (1024 * 1024);
+    tempoEstimadoAnaliseRef.current = 60_000 + tamanhoTotalMB * 20_000;
+    tempoInicioAnaliseRef.current = null;
+
     try {
       const resp = await enviarParaAnalise({
         arquivos,
@@ -112,7 +116,30 @@ export default function AgenteAnalisePage() {
         criadoPor: userProfile?.uid || 'unknown',
       });
       setEtapa('processando');
-      const final = await aguardarAnalise(resp.analise_id);
+
+      const final = await aguardarAnalise(resp.analise_id, {
+        intervaloMs: 2000,
+        onProgress: (s) => {
+          if (s.fase === 'convertendo') {
+            setFase('convertendo');
+            setProgConv(s.progresso_conversao ?? 0);
+            setMensagemFase(s.mensagem || 'Convertendo arquivos...');
+          } else if (s.fase === 'analisando') {
+            // Marca início se ainda não marcou
+            if (tempoInicioAnaliseRef.current === null) {
+              tempoInicioAnaliseRef.current = Date.now();
+              setProgConv(100);
+            }
+            const decorrido = Date.now() - tempoInicioAnaliseRef.current;
+            const pct = Math.min(95, (decorrido / tempoEstimadoAnaliseRef.current) * 100);
+            setFase('analisando');
+            setProgAnalise(pct);
+            setMensagemFase(s.mensagem || 'Analisando com IA...');
+          }
+        },
+      });
+      setProgConv(100);
+      setProgAnalise(100);
       setResultado(final);
       setEtapa(final.status === 'erro' ? 'erro' : 'concluido');
       if (final.status === 'erro') setErro(final.erro || 'Erro desconhecido');
@@ -178,7 +205,10 @@ export default function AgenteAnalisePage() {
               >
                 <Upload className="w-12 h-12 text-[#4674e8] mx-auto mb-3" />
                 <p className="font-bold text-[#2c4a70] mb-1">Arraste os arquivos aqui</p>
-                <p className="text-sm text-[#1a2b45]/60">ou clique para selecionar — PDF, PNG, JPG ou TXT (Word não é suportado pelo Gemini)</p>
+                <p className="text-sm text-[#1a2b45]/60">
+                  ou clique para selecionar — PDF, Word, Excel, PowerPoint, ODF, RTF, HTML, PNG, JPG, TXT.
+                  Office é convertido para PDF automaticamente.
+                </p>
                 <input
                   ref={inputRef}
                   type="file"
@@ -234,15 +264,35 @@ export default function AgenteAnalisePage() {
             </div>
           )}
 
-          {/* PROCESSANDO */}
+          {/* PROCESSANDO — 2 barras de progresso */}
           {(etapa === 'enviando' || etapa === 'processando') && (
-            <div className="card p-12 text-center">
-              <Loader2 className="w-12 h-12 text-[#4674e8] mx-auto mb-4 animate-spin" />
-              <p className="font-bold text-[#2c4a70]">
-                {etapa === 'enviando' ? 'Enviando arquivos...' : 'Analisando documentos com IA...'}
-              </p>
-              <p className="text-sm text-[#1a2b45]/60 mt-2">
-                Isso pode levar até 2 minutos dependendo do tamanho dos arquivos.
+            <div className="card p-8 space-y-6">
+              <div className="flex items-center gap-3">
+                <Loader2 className="w-6 h-6 text-[#4674e8] animate-spin flex-shrink-0" />
+                <div>
+                  <p className="font-bold text-[#2c4a70]">Processando análise</p>
+                  <p className="text-sm text-[#1a2b45]/60">{mensagemFase || 'Enviando arquivos...'}</p>
+                </div>
+              </div>
+
+              {/* Barra 1: Conversão (concluída quando passa para fase 'analisando') */}
+              <BarraProgresso
+                titulo="Conversão para PDF"
+                valor={progConv}
+                ativo={fase === 'convertendo'}
+                concluido={fase === 'analisando'}
+              />
+
+              {/* Barra 2: Análise IA */}
+              <BarraProgresso
+                titulo="Análise com IA (Gemini)"
+                valor={progAnalise}
+                ativo={fase === 'analisando'}
+                concluido={false}
+              />
+
+              <p className="text-xs text-[#1a2b45]/50 text-center">
+                Análises completas podem levar de 1 a 5 minutos. Você pode acompanhar pela lista de licitações.
               </p>
             </div>
           )}
@@ -342,6 +392,42 @@ function Campo({ label, valor }: { label: string; valor?: string | number | null
     <div>
       <p className="text-xs text-[#1a2b45]/60">{label}</p>
       <p className="font-medium text-[#1a2b45]">{valor || '—'}</p>
+    </div>
+  );
+}
+
+function BarraProgresso({
+  titulo,
+  valor,
+  ativo,
+  concluido,
+}: {
+  titulo: string;
+  valor: number;
+  ativo: boolean;
+  concluido: boolean;
+}) {
+  const pct = Math.max(0, Math.min(100, Math.round(valor)));
+  const corBarra = concluido
+    ? 'bg-green-500'
+    : ativo
+    ? 'bg-[#4674e8]'
+    : 'bg-gray-300';
+  const corTexto = concluido ? 'text-green-700' : ativo ? 'text-[#2c4a70]' : 'text-gray-400';
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className={`text-sm font-medium ${corTexto}`}>
+          {titulo} {concluido && '✓'}
+        </span>
+        <span className={`text-sm font-bold ${corTexto}`}>{pct}%</span>
+      </div>
+      <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full ${corBarra} transition-all duration-500 ease-out`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
