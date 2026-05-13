@@ -308,10 +308,43 @@ literal numerada do item correspondente.
 
 5. **LISTAS NUNCA INLINE**: quando o edital traz uma lista de alíneas (a), b), c)) ou itens \
 numerados (1), 2), 3)) ou subitens (1.1, 1.2, 1.2.1), CADA alínea/item DEVE estar em SUA PRÓPRIA \
-LINHA, separada por "\\n\\n". NUNCA escreva "...documentos exigidos: a) certidão; b) atestado; \
-c) declaração" em corrido. ESCREVA:
-   "...documentos exigidos:\\n\\na) certidão...\\n\\nb) atestado...\\n\\nc) declaração..."
-   Vale também para romanos (I, II, III), bullets (•) e qualquer enumeração.
+LINHA. SUBITENS DEVEM TER INDENTAÇÃO DE 4 ESPAÇOS no início da linha. Use "\\n" para quebra \
+dentro de uma lista (subitens da mesma família) e "\\n\\n" para separar blocos diferentes:
+
+   "7.2.2 Regularidade fiscal, social e trabalhista:\\n    a) Prova de inscrição no CNPJ;\\n    \
+b) Certificado de regularidade do FGTS;\\n    c) Certidão negativa de débitos trabalhistas \
+(CNDT).\\n(Edital.pdf, pg. 5)\\n\\n10.3.2 Regularidade fiscal, social e trabalhista:\\n    \
+a) Prova...\\n..."
+
+   NUNCA escreva "...documentos exigidos: a) certidão; b) atestado; c) declaração" em corrido. \
+Vale também para romanos (I, II, III), bullets (•) e qualquer enumeração.
+
+============ RASTREABILIDADE — CITAR FONTE (NomeArquivo, pg. X) ============
+**OBRIGATÓRIO** para todo bloco de citação literal: ao final de cada bloco (logo após o último \
+item da família), inclua a fonte EM PARÁGRAFO PRÓPRIO no formato:
+
+   "(NomeArquivo, pg. X)"
+
+   - NomeArquivo = nome exato do arquivo que apareceu na lista numerada antes dos PDFs \
+(ex: "Edital.pdf", "Termo de Referência do edital republicado.pdf", "Anexo I do TR - Cód. \
+335366.pdf").
+   - X = número da página do PDF (1-indexado) onde o item está.
+   - Quando o item ocupa mais de uma página, indique "pgs. 4-5".
+   - Se for impossível identificar a página exata, ao menos indique o arquivo: "(Edital.pdf)".
+
+Exemplo de bloco completo bem formatado:
+
+   "4.2.1 A comprovação de regularidade fiscal das microempresas e empresas de pequeno porte \
+somente será exigida para efeito de assinatura do contrato.\\n(Edital.pdf, pg. 3)\\n\\n7.2.2 \
+Regularidade fiscal, social e trabalhista:\\n    a) Prova de inscrição no CNPJ;\\n    \
+b) Certificado de regularidade do FGTS;\\n    c) Certidão de débitos trabalhistas (CNDT).\\n\
+(TR.pdf, pg. 12)"
+
+============ ORDENAÇÃO DE ITENS ============
+Dentro de cada seção, ORDENE os itens citados pela NUMERAÇÃO crescente. Itens com numeração \
+4.2.1 vêm antes de 7.2.2, que vem antes de 10.3.2. Use a ordem natural dos números (4.2.1 < \
+4.2.2 < 4.2.3 < 5.1 < 7.2.2 < 10.3.2). Quando o mesmo tema é tratado em itens dispersos do \
+edital, agrupe na ordem numérica.
 
 ============ COMPLETUDE — NÃO ENTREGUE ANÁLISE PARCIAL ============
 A análise da Abächerly é vendida ao cliente. ENTREGAR ANÁLISE INCOMPLETA É INACEITÁVEL.

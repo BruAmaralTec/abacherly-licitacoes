@@ -105,6 +105,22 @@ def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
     )
 
     parts: list[Part] = list(exemplos_parts)
+
+    # Lista numerada dos arquivos enviados — o Gemini não tem acesso ao nome
+    # do arquivo a partir do Part. Esta nota textual permite que ele cite a
+    # fonte ao final de cada bloco no formato "(NomeArquivo, pg. X)".
+    nomes_arquivos = "\n".join(
+        f"  Arquivo {i+1}: {nome}" for i, (nome, _, _) in enumerate(arquivos)
+    )
+    parts.append(
+        Part.from_text(
+            "Os documentos a seguir são o EDITAL real que você deve analisar.\n"
+            f"Nomes dos arquivos (na ordem em que aparecem):\n{nomes_arquivos}\n\n"
+            "Use esses nomes EXATAMENTE quando citar a fonte ao final de cada "
+            "bloco de citação literal, no formato '(NomeArquivo, pg. X)'."
+        )
+    )
+
     for nome, conteudo, mime in arquivos:
         try:
             parts.append(Part.from_data(data=conteudo, mime_type=mime))

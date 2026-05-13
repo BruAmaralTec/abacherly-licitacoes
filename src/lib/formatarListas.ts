@@ -1,48 +1,45 @@
 /**
  * Formatador de listas para o texto vindo do agente IA.
  *
- * O Gemini frequentemente retorna texto corrido contendo listas como:
+ * Quando o Gemini segue o prompt corretamente, já manda subitens indentados:
+ *   "7.2.2 Regularidade...\n    a) CNPJ;\n    b) FGTS;\n    c) CNDT."
+ *
+ * Quando NÃO segue, manda em corrido:
  *   "...documentos exigidos: a) certidão...; b) atestado...; c) declaração..."
  *
- * Esta função detecta marcadores clássicos e insere `\n\n` antes de cada item
- * para que o `whitespace-pre-wrap` no front renderize em parágrafos.
- *
- * Marcadores reconhecidos:
- *   - a) b) c) ... z)
- *   - 1) 2) ... 99)
- *   - 1.1, 1.1.1, 1.2.3, etc.
- *   - I. II. III. IV. (romanos maiúsculos seguidos de ponto ou parêntese)
- *   - • (bullet)
- *
- * Cuidados (não quebra):
- *   - Não insere quebra se já há `\n` imediatamente antes do marcador.
- *   - Não confunde "Lei nº 14.133/2021" ou "5.3.5" no início de frase.
- *   - Conservativo: prefere deixar passar do que quebrar texto válido.
+ * Este formatador detecta o caso corrido e injeta quebras + indentação.
+ * Se já vier formatado, NÃO toca (preserva tabs/espaços do agente).
  */
 export function formatarListas(texto: string | undefined | null): string {
   if (!texto) return '';
 
   let out = texto;
 
-  // 1) Marcadores com letra minúscula em parênteses: " a) " → "\n\na) "
-  //    Só quando vier após espaço/ponto/vírgula/ponto-e-vírgula (não meio de palavra).
-  out = out.replace(/([.;,]\s+|\s{2,})([a-z]\)\s)/g, '\n\n$2');
+  // 1) Alíneas a) b) c) z) — quando vêm INLINE após ponto/vírgula/dois-pontos +
+  //    espaço (NÃO depois de quebra de linha). Insere \n + 4 espaços antes.
+  out = out.replace(/([.;,:]\s+)([a-z]\)\s)/g, '\n    $2');
 
-  // 2) Marcadores numerados em parênteses: " 1) ", " 12) "
-  out = out.replace(/([.;,]\s+|\s{2,})(\d{1,2}\)\s)/g, '\n\n$2');
+  // 2) Itens numerados em parênteses inline: " 1) ", " 12) ".
+  out = out.replace(/([.;,:]\s+)(\d{1,2}\)\s)/g, '\n    $2');
 
-  // 3) Marcadores numerados com ponto: " 1.1 ", " 1.1.1 "
-  //    Exige pelo menos 2 níveis (1.1, 1.2.3) para evitar quebrar "5.3.5" no meio
-  //    de uma frase única. Vem após espaço seguido de letra maiúscula no item.
-  out = out.replace(/([.;]\s+)(\d+\.\d+(?:\.\d+)*\s+(?=[A-ZÀ-Ü]))/g, '\n\n$2');
+  // 3) Marcadores numerados em ponto (1.1, 1.1.1, 5.3.5) — apenas após ponto
+  //    final de frase + espaço, e seguido de letra maiúscula (parágrafo novo).
+  //    Aqui usamos \n\n (parágrafo, não subitem).
+  out = out.replace(
+    /([.;]\s+)(\d+\.\d+(?:\.\d+)*\s+(?=[A-ZÀ-Ü]))/g,
+    '\n\n$2'
+  );
 
-  // 4) Romanos maiúsculos: " I. ", " II) ", " III. "
-  out = out.replace(/([.;,]\s+)([IVX]{1,4}[.)]\s+(?=[A-ZÀ-Ü]))/g, '\n\n$2');
+  // 4) Romanos maiúsculos com ponto/parêntese — também parágrafo novo.
+  out = out.replace(
+    /([.;,:]\s+)([IVX]{1,4}[.)]\s+(?=[A-ZÀ-Ü]))/g,
+    '\n\n$2'
+  );
 
-  // 5) Bullets:  • item   ou   - item   no meio de texto contínuo
-  out = out.replace(/\s+([•·]\s)/g, '\n\n$1');
+  // 5) Bullets • · inline → quebra + indent.
+  out = out.replace(/\s+([•·]\s)/g, '\n    $1');
 
-  // 6) Compactar 3+ \n consecutivos para 2 (parágrafo separado, não bloco)
+  // 6) Compactar 3+ \n consecutivos para 2.
   out = out.replace(/\n{3,}/g, '\n\n');
 
   return out;
@@ -55,7 +52,6 @@ export function formatarListas(texto: string | undefined | null): string {
  */
 export function formatarAnaliseListas<T extends object>(analise: T): T {
   if (!analise) return analise;
-  // Lista dos campos longos onde aplica
   const CAMPOS = [
     'atencoes',
     'documentacao',
