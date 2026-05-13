@@ -340,10 +340,14 @@ export default function EquipeLicitacoesPage() {
                   <option value="custom">Customizado...</option>
                 </select>
               </div>
-              <div className="flex items-end">
-                <button onClick={limparFiltros} className="btn-secondary w-full flex items-center justify-center gap-2">
+              <div>
+                <label className="text-xs font-bold text-[#1a2b45]/60 invisible">Ações</label>
+                <button
+                  onClick={limparFiltros}
+                  className="btn-secondary w-full flex items-center justify-center gap-2 mt-1"
+                >
                   <X className="w-4 h-4" />
-                  Limpar
+                  Limpar filtros
                 </button>
               </div>
             </div>

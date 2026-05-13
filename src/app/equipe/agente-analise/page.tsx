@@ -304,7 +304,7 @@ export default function AgenteAnalisePage() {
 
               {/* Barra 2: Análise IA */}
               <BarraProgresso
-                titulo="Análise com IA (Gemini)"
+                titulo="Análise via Agente de IA"
                 valor={progAnalise}
                 ativo={fase === 'analisando' || !mostrarBarraConv}
                 concluido={false}

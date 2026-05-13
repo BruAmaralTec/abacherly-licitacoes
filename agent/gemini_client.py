@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from vertexai import init as vertex_init
@@ -41,6 +42,116 @@ def _ensure_init() -> None:
     if not _initialized:
         vertex_init(project=GCP_PROJECT, location=GCP_LOCATION)
         _initialized = True
+
+
+def _parse_json_robusto(text: str, contexto: str = "Gemini") -> dict[str, Any]:
+    """Parseia JSON do Gemini com fallback para casos comuns de falha:
+      1. Markdown wrapping (```json ... ```)
+      2. Texto extra antes/depois do JSON
+      3. Truncamento (JSON cortado no meio por max_output_tokens) — tenta
+         fechar adicionando aspas/chaves/colchetes faltando.
+
+    Levanta ValueError com mensagem amigável quando esgota tentativas.
+    """
+    if not text or not text.strip():
+        raise ValueError(f"{contexto}: resposta vazia")
+
+    # 1) Strip markdown wrapping (```json ... ``` ou ``` ... ```)
+    t = text.strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```(?:json)?\s*\n?", "", t)
+        t = re.sub(r"\n?```\s*$", "", t)
+        t = t.strip()
+
+    # 2) Extrair primeiro bloco JSON (entre primeiro { e último })
+    inicio = t.find("{")
+    fim = t.rfind("}")
+    if inicio >= 0 and fim > inicio:
+        candidato = t[inicio : fim + 1]
+    else:
+        candidato = t
+
+    # Tentativa direta
+    try:
+        return json.loads(candidato)
+    except json.JSONDecodeError:
+        pass
+
+    # 3) Tentativa de recuperar JSON truncado: anexa fechamentos progressivos
+    #    Estratégia: contar { [ não fechados e fechar na ordem reversa.
+    #    Se a última string ficou aberta (terminou no meio de "..."), fecha aspas.
+    aberto_chaves = 0
+    aberto_colchetes = 0
+    em_string = False
+    escape = False
+    ultima_pos_segura = 0
+    for i, ch in enumerate(candidato):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and em_string:
+            escape = True
+            continue
+        if ch == '"':
+            em_string = not em_string
+            continue
+        if em_string:
+            continue
+        if ch == "{":
+            aberto_chaves += 1
+        elif ch == "}":
+            aberto_chaves -= 1
+            if aberto_chaves >= 0 and aberto_colchetes == 0:
+                ultima_pos_segura = i + 1
+        elif ch == "[":
+            aberto_colchetes += 1
+        elif ch == "]":
+            aberto_colchetes -= 1
+
+    # Cenário: string aberta no fim — fecha aspas. Remove último valor parcial
+    # (campo que ficou pela metade) cortando até a última vírgula ou {.
+    base = candidato[:ultima_pos_segura] if ultima_pos_segura > 0 else candidato
+    if not base.rstrip().endswith("}"):
+        # Tenta cortar lixo após a última } válida no nível raiz
+        ultima_chave = base.rfind("}")
+        if ultima_chave > 0:
+            base = base[: ultima_chave + 1]
+
+    # Já fechou no nível raiz? Tenta parse.
+    try:
+        return json.loads(base)
+    except json.JSONDecodeError:
+        pass
+
+    # Se ainda assim falhar, completa fechamentos balanceados
+    completado = candidato
+    if em_string:
+        completado += '"'
+    while aberto_colchetes > 0:
+        completado += "]"
+        aberto_colchetes -= 1
+    while aberto_chaves > 0:
+        completado += "}"
+        aberto_chaves -= 1
+    try:
+        return json.loads(completado)
+    except json.JSONDecodeError as exc:
+        # Última cartada: salva trecho do problema e propaga erro com contexto
+        snippet_inicio = max(0, getattr(exc, "pos", 0) - 200)
+        snippet_fim = min(len(text), getattr(exc, "pos", 0) + 200)
+        logger.error(
+            "[%s] JSON irrecuperavel. err=%s pos=%s len=%d snippet=%r",
+            contexto,
+            exc,
+            getattr(exc, "pos", "?"),
+            len(text),
+            text[snippet_inicio:snippet_fim],
+        )
+        raise ValueError(
+            f"Resposta do {contexto} não pôde ser parseada como JSON. "
+            f"Provavel truncamento na resposta (length={len(text)}). "
+            f"Tente reduzir a quantidade de documentos enviados ou simplifique."
+        ) from exc
 
 
 def _modelo_atual() -> str:
@@ -142,11 +253,10 @@ def analisar_arquivos(arquivos: list[tuple[str, bytes, str]]) -> dict[str, Any]:
     )
 
     text = response.text or "{}"
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        logger.error("JSON inválido do Gemini: %s\nresposta:\n%s", exc, text[:1000])
-        raise ValueError("Resposta do modelo não pôde ser parseada como JSON") from exc
+    # Log preventivo: se a resposta veio próxima do limite, registra alerta.
+    if len(text) > 200_000:
+        logger.warning("resposta Gemini muito grande (%d chars) — risco de truncamento", len(text))
+    return _parse_json_robusto(text, contexto="Agente IA (análise)")
 
 
 def extrair_cartao_cnpj(conteudo: bytes, mime_type: str) -> dict[str, Any]:
@@ -178,8 +288,4 @@ def extrair_cartao_cnpj(conteudo: bytes, mime_type: str) -> dict[str, Any]:
     )
 
     text = response.text or "{}"
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as exc:
-        logger.error("JSON inválido do Gemini (CNPJ): %s\nresposta:\n%s", exc, text[:1000])
-        raise ValueError("Resposta do modelo não pôde ser parseada como JSON") from exc
+    return _parse_json_robusto(text, contexto="Agente IA (CNPJ)")

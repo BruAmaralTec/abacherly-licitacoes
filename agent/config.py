@@ -16,10 +16,11 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 # 10 mais recentes representam o padrao atual da Abacherly e dao bom few-shot.
 MAX_EXEMPLOS_FEWSHOT = int(os.environ.get("MAX_EXEMPLOS_FEWSHOT", "10"))
 
-# Maximo de tokens na resposta. Com 16 secoes + cabecalho, citacoes literais
-# longas, queremos garantir que a saida nao seja truncada. 32768 (32k) e o
-# limite max do Gemini 2.5/3.x para JSON.
-MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "32768"))
+# Maximo de tokens na resposta. Com a regra absoluta "trazer TUDO pertinente",
+# as respostas ficaram muito maiores. Subimos para 65535 (limite max do Gemini
+# 2.5 com response_mime_type=json). O parser tambem ganhou resiliencia a
+# truncamento e markdown wrapping.
+MAX_OUTPUT_TOKENS = int(os.environ.get("MAX_OUTPUT_TOKENS", "65535"))
 
 # Bucket GCS dedicado a inputs do agente (lifecycle 6 meses configurado fora)
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "abacherly-analises")
