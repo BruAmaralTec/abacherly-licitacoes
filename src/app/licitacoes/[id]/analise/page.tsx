@@ -236,8 +236,8 @@ export default function AnalisePage() {
           </div>
         </div>
 
-        {/* Tabs (não imprime) — sticky logo abaixo da toolbar */}
-        <div className="print:hidden sticky top-[60px] z-[9] bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 shadow-sm">
+        {/* Tabs (não imprime) — sticky logo abaixo da toolbar (offset ajustado p/ fonte 20px) */}
+        <div className="print:hidden sticky top-[78px] z-[9] bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 shadow-sm">
           <div className="flex flex-wrap gap-1 overflow-x-auto">
             {TABS.map((t) => {
               const ativo = tabAtiva === t.id;
@@ -272,22 +272,22 @@ export default function AnalisePage() {
             ref={printRef}
             className="w-full max-w-7xl print:max-w-none mx-auto bg-white shadow-lg print:shadow-none rounded-lg print:rounded-none"
           >
-            <div className="p-6 sm:p-10 lg:p-14 print:p-[2cm] space-y-8 text-[#1a2b45] text-[15px] leading-relaxed">
-              {/* Cabeçalho — logo à ESQUERDA, título à direita */}
-              <div className="border-b-2 border-[#d64b16] pb-6 flex items-center gap-6">
+            <div className="p-6 sm:p-10 lg:p-14 print:p-[2cm] space-y-6 text-[#1a2b45] text-[15px] leading-snug">
+              {/* Cabeçalho — logo compacta à esquerda, título à direita */}
+              <div className="border-b-2 border-[#d64b16] pb-4 flex items-center gap-4">
                 <Image
-                  src="/images/logo-azul.png"
+                  src="/images/cabecalho.png"
                   alt="Abächerly Licitações"
                   width={500}
                   height={500}
                   priority
-                  className="w-auto h-32 sm:h-40 lg:h-44 print:h-32 flex-shrink-0"
+                  className="w-auto h-16 sm:h-20 print:h-16 flex-shrink-0"
                 />
                 <div className="flex-1 text-right">
-                  <h1 className="text-3xl lg:text-4xl font-bold text-[#2c4a70] tracking-wide">
+                  <h1 className="text-xl lg:text-2xl font-bold text-[#2c4a70] tracking-wide">
                     ANÁLISE DO EDITAL
                   </h1>
-                  <p className="text-lg text-[#1a2b45]/80 mt-3">
+                  <p className="text-sm text-[#1a2b45]/80 mt-1">
                     Nº Conlicitação{' '}
                     <span className="font-bold">
                       {licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—'}
@@ -680,6 +680,12 @@ export default function AnalisePage() {
                   <p className="mt-4 text-sm font-bold text-[#2c4a70]">Atenciosamente,</p>
                   <p className="text-sm text-[#2c4a70]">Érika Abächerly</p>
                 </div>
+                <div className="mt-8 pt-4 border-t border-[#d64b16]/30 text-center">
+                  <p className="text-xs text-[#1a2b45]/70">
+                    <span className="font-bold">Abächerly Consultoria em Licitações</span>{' '}
+                    — erika@abacherly.com.br — (11) 9 9346-6155
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -742,8 +748,10 @@ function Bloco({
 }) {
   const borda = cor === 'vermelho' ? 'border-red-500' : 'border-[#d64b16]/30';
   const corTitulo = cor === 'vermelho' ? 'text-red-700' : 'text-[#2c4a70]';
+  // Bloco com flagId mas SEM (conferido && enviar): esconde no print/PDF.
+  const naoExporta = !!flagId && !(conferido && enviar);
   return (
-    <div>
+    <div className={naoExporta ? 'bloco-nao-exportar' : ''}>
       <div className={`flex flex-wrap items-center gap-3 border-b ${borda} pb-2 mb-4`}>
         <h2 className={`text-base font-bold ${corTitulo} flex-1`}>{titulo}</h2>
         {flagId && onFlagChange && (
@@ -846,7 +854,7 @@ function CampoLongo({
       suppressContentEditableWarning
       data-placeholder={placeholder}
       onBlur={(e) => onChange(e.currentTarget.textContent || '')}
-      className={`campo-longo px-4 py-3 text-[15px] leading-7 border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent min-h-[80px] whitespace-pre-wrap break-words print:border-none print:p-0 print:min-h-0 ${
+      className={`campo-longo px-4 py-3 text-[15px] leading-snug border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent min-h-[60px] whitespace-pre-wrap break-words print:border-none print:p-0 print:min-h-0 ${
         readOnly ? 'cursor-default' : ''
       }`}
       style={{ wordBreak: 'break-word' }}

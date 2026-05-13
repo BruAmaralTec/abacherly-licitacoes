@@ -347,6 +347,11 @@ a:hover {
     display: block !important;
   }
 
+  /* Filtro do PDF: blocos sem (Conferido && Enviar no doc cliente) não saem */
+  .bloco-nao-exportar {
+    display: none !important;
+  }
+
   /* contentEditable na impressão: tira borda e placeholder */
   [contenteditable] {
     border: none !important;

@@ -27,7 +27,7 @@ function campoResumo(label: string, valor: string): TableRow {
         children: [
           new Paragraph({
             children: [
-              new TextRun({ text: label, bold: true, size: 20, color: COR_PRIMARIA, font: 'Calibri' }),
+              new TextRun({ text: label, bold: true, size: 24, color: COR_PRIMARIA, font: "Calibri" }),
             ],
           }),
         ],
@@ -36,7 +36,7 @@ function campoResumo(label: string, valor: string): TableRow {
         children: [
           new Paragraph({
             children: [
-              new TextRun({ text: valor || '—', size: 20, font: 'Calibri' }),
+              new TextRun({ text: valor || '—', size: 24, font: "Calibri" }),
             ],
           }),
         ],
@@ -49,7 +49,7 @@ function secao(titulo: string, conteudo: string, corTitulo: string = COR_PRIMARI
   const paragraphs: Paragraph[] = [
     new Paragraph({
       children: [
-        new TextRun({ text: titulo, bold: true, size: 22, color: corTitulo, font: 'Calibri' }),
+        new TextRun({ text: titulo, bold: true, size: 28, color: corTitulo, font: 'Calibri' }),
       ],
       spacing: { before: 300, after: 100 },
       border: {
@@ -62,7 +62,7 @@ function secao(titulo: string, conteudo: string, corTitulo: string = COR_PRIMARI
     conteudo.split('\n').forEach((linha) => {
       paragraphs.push(
         new Paragraph({
-          children: [new TextRun({ text: linha, size: 20, font: 'Calibri' })],
+          children: [new TextRun({ text: linha, size: 24, font: "Calibri" })],
           spacing: { after: 60 },
         })
       );
@@ -70,7 +70,7 @@ function secao(titulo: string, conteudo: string, corTitulo: string = COR_PRIMARI
   } else {
     paragraphs.push(
       new Paragraph({
-        children: [new TextRun({ text: '', size: 20, font: 'Calibri' })],
+        children: [new TextRun({ text: '', size: 24, font: "Calibri" })],
         spacing: { after: 200 },
       })
     );
@@ -121,7 +121,7 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
     styles: {
       default: {
         document: {
-          run: { font: 'Calibri', size: 20 },
+          run: { font: 'Calibri', size: 24 },
         },
       },
     },
@@ -149,11 +149,11 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: 'Nº Conlicitação ', size: 22, color: '666666', font: 'Calibri' }),
+              new TextRun({ text: 'Nº Conlicitação ', size: 24, color: '666666', font: 'Calibri' }),
               new TextRun({
                 text: licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—',
                 bold: true,
-                size: 22,
+                size: 24,
                 font: 'Calibri',
               }),
             ],
@@ -185,7 +185,7 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
                   children: [
                     new TextRun({
                       text: `Processo Administrativo nº: ${licitacao.processo}`,
-                      size: 20,
+                      size: 24,
                       color: COR_BRANCO,
                       font: 'Calibri',
                     }),
@@ -205,7 +205,7 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
                     new TextRun({
                       text: 'RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO',
                       bold: true,
-                      size: 22,
+                      size: 28,
                       color: COR_PRIMARIA,
                       font: 'Calibri',
                     }),
@@ -289,7 +289,7 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
             children: [
               new TextRun({
                 text: `Itu, ${new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}`,
-                size: 20,
+                size: 24,
                 color: '666666',
                 font: 'Calibri',
               }),
@@ -299,16 +299,34 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: 'Atenciosamente,', bold: true, size: 20, color: COR_PRIMARIA, font: 'Calibri' }),
+              new TextRun({ text: 'Atenciosamente,', bold: true, size: 24, color: COR_PRIMARIA, font: "Calibri" }),
             ],
             alignment: AlignmentType.CENTER,
             spacing: { before: 200 },
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: 'Érika Abächerly', size: 20, color: COR_PRIMARIA, font: 'Calibri' }),
+              new TextRun({ text: 'Érika Abächerly', size: 24, color: COR_PRIMARIA, font: "Calibri" }),
             ],
             alignment: AlignmentType.CENTER,
+          }),
+
+          // ===== RODAPÉ DE CONTATO =====
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: 'Abächerly Consultoria em Licitações — erika@abacherly.com.br — (11) 9 9346-6155',
+                size: 20,
+                color: '666666',
+                font: 'Calibri',
+                italics: true,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 600 },
+            border: {
+              top: { style: BorderStyle.SINGLE, size: 1, color: COR_ACCENT },
+            },
           }),
         ],
       },
