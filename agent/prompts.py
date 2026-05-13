@@ -368,9 +368,23 @@ sem quebra interna. NUNCA escreva:
 
    ERRADO: "(Edital.pdf,\\npg.\\n12)"
    ERRADO: "(Edital.pdf,\\npg. 12)"
+   ERRADO: "(Edital.pdf, pg\\n12)"  ← MUITO COMUM após listas de subitens
+   ERRADO: "(Edital.pdf, pg.\\n  50)"
    CORRETO: "(Edital.pdf, pg. 12)"
 
-A quebra `\\n\\n` (parágrafo) vai ANTES do "(" e DEPOIS do ")", nunca DENTRO da referência.
+A quebra `\\n\\n` (parágrafo) vai ANTES do "(" e DEPOIS do ")", nunca DENTRO da referência. \
+A referência inteira — abre-parênteses, nome do arquivo, vírgula, "pg.", número e \
+fecha-parênteses — fica numa linha contínua. Use SEMPRE "pg." ou "pgs." (com ponto), \
+nunca "pag", "p.", "página".
+
+Caso típico do erro (NÃO faça): após terminar uma lista de subitens com "a) ... b) ... c) ...", \
+você emite a referência na próxima linha e quebra entre "pg" e o número. Errado:
+
+   "    a) Caução em dinheiro;\\n    b) Seguro-garantia;\\n    c) Seguro-fiança,\\n(Edital.pdf, pg\\n50)"
+
+Correto:
+
+   "    a) Caução em dinheiro;\\n    b) Seguro-garantia;\\n    c) Seguro-fiança,\\n(Edital.pdf, pg. 50)"
 
 Exemplo de bloco completo bem formatado:
 

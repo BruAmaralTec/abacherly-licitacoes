@@ -13,17 +13,32 @@
 export function formatarListas(texto: string | undefined | null): string {
   if (!texto) return '';
 
-  let out = texto;
+  // Normaliza caracteres invisíveis e \r\n antes de aplicar regex.
+  // NBSP (U+00A0), zero-width spaces e narrow no-break space viram espaço comum.
+  let out = texto
+    .replace(/\r\n/g, '\n')
+    .replace(/[  ]/g, ' ')
+    .replace(/[​‌‍﻿]/g, '');
 
-  // 0) Referências (NomeArquivo, pg. X) — colapsa qualquer whitespace interno
-  //    (inclusive \n) para um espaço único. Detecta extensões comuns + "pg".
-  //    Casos:  "(Edital.pdf,\n  pg. 5)"  →  "(Edital.pdf, pg. 5)"
-  //            "(Edital.pdf, pg.\n12)"   →  "(Edital.pdf, pg. 12)"
-  //            "(Edital.pdf,\npgs. 5-7)" →  "(Edital.pdf, pgs. 5-7)"
+  // 0) Referências (NomeArquivo, pg. X) — REGRA AGRESSIVA: qualquer parênteses
+  //    que contém um nome.ext (pdf/docx/xlsx/pptx/odt/ods/odp/txt/html/csv/rtf)
+  //    em algum lugar tem todo o whitespace interno colapsado para 1 espaço.
+  //    Cobre casos:
+  //      "(Edital.pdf,\n  pg. 5)"        → "(Edital.pdf, pg. 5)"
+  //      "(Edital.pdf, pg\n50)"          → "(Edital.pdf, pg 50)"
+  //      "(Edital.pdf,\npgs. 5-7)"       → "(Edital.pdf, pgs. 5-7)"
+  //      "(Edital.pdf, página\n12)"      → "(Edital.pdf, página 12)"
+  //      "(Termo de Referência.pdf,\n  p. 4)" → "(Termo de Referência.pdf, p. 4)"
+  //    NOTA: usamos [^()] (sem excluir \n) para casar parênteses multi-linha.
   out = out.replace(
-    /\(\s*([^()\n]+?\.(?:pdf|docx?|xlsx?|pptx?|odt|ods|odp|txt|html?|csv|rtf))\s*([,;\s]*)\s*(pgs?\.?)\s*([\d\-,\s]+?)\s*\)/gi,
-    (_m, arquivo, _sep, pg, paginas) =>
-      `(${arquivo.trim()}, ${pg.replace(/\s+/g, '')} ${paginas.replace(/\s+/g, '')})`
+    /\(\s*([^()]*?\.(?:pdf|docx?|xlsx?|pptx?|odt|ods|odp|txt|html?|csv|rtf)[^()]*?)\s*\)/gi,
+    (match, interior: string) => {
+      // Colapsa qualquer sequência de whitespace para um único espaço.
+      const limpo = interior.replace(/\s+/g, ' ').trim();
+      // Compacta vírgula colada: "Edital.pdf,pg" → "Edital.pdf, pg"
+      const normalizado = limpo.replace(/,(\S)/g, ', $1');
+      return `(${normalizado})`;
+    }
   );
 
   // 1) Alíneas a) b) c) z) — quando vêm INLINE após ponto/vírgula/dois-pontos +
