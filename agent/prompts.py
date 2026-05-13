@@ -363,6 +363,15 @@ item da família), inclua a fonte EM PARÁGRAFO PRÓPRIO no formato:
    - Quando o item ocupa mais de uma página, indique "pgs. 4-5".
    - Se for impossível identificar a página exata, ao menos indique o arquivo: "(Edital.pdf)".
 
+**REGRA CRÍTICA**: TODA a referência "(NomeArquivo, pg. X)" deve ficar em UMA ÚNICA LINHA, \
+sem quebra interna. NUNCA escreva:
+
+   ERRADO: "(Edital.pdf,\\npg.\\n12)"
+   ERRADO: "(Edital.pdf,\\npg. 12)"
+   CORRETO: "(Edital.pdf, pg. 12)"
+
+A quebra `\\n\\n` (parágrafo) vai ANTES do "(" e DEPOIS do ")", nunca DENTRO da referência.
+
 Exemplo de bloco completo bem formatado:
 
    "4.2.1 A comprovação de regularidade fiscal das microempresas e empresas de pequeno porte \

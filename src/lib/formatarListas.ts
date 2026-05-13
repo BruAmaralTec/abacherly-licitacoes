@@ -15,6 +15,17 @@ export function formatarListas(texto: string | undefined | null): string {
 
   let out = texto;
 
+  // 0) Referências (NomeArquivo, pg. X) — colapsa qualquer whitespace interno
+  //    (inclusive \n) para um espaço único. Detecta extensões comuns + "pg".
+  //    Casos:  "(Edital.pdf,\n  pg. 5)"  →  "(Edital.pdf, pg. 5)"
+  //            "(Edital.pdf, pg.\n12)"   →  "(Edital.pdf, pg. 12)"
+  //            "(Edital.pdf,\npgs. 5-7)" →  "(Edital.pdf, pgs. 5-7)"
+  out = out.replace(
+    /\(\s*([^()\n]+?\.(?:pdf|docx?|xlsx?|pptx?|odt|ods|odp|txt|html?|csv|rtf))\s*([,;\s]*)\s*(pgs?\.?)\s*([\d\-,\s]+?)\s*\)/gi,
+    (_m, arquivo, _sep, pg, paginas) =>
+      `(${arquivo.trim()}, ${pg.replace(/\s+/g, '')} ${paginas.replace(/\s+/g, '')})`
+  );
+
   // 1) Alíneas a) b) c) z) — quando vêm INLINE após ponto/vírgula/dois-pontos +
   //    espaço (NÃO depois de quebra de linha). Insere \n + 4 espaços antes.
   out = out.replace(/([.;,:]\s+)([a-z]\)\s)/g, '\n    $2');

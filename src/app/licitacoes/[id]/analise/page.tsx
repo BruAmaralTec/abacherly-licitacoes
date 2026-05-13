@@ -343,6 +343,12 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                   <LinhaInput
+                    label="Órgão"
+                    valor={analise.orgao || licitacao.orgao || ''}
+                    onChange={(v) => upd('orgao', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
                     label="Base Legal"
                     valor={analise.baseLegal || licitacao.baseLegal || ''}
                     onChange={(v) => upd('baseLegal', v)}
@@ -768,6 +774,11 @@ function Bloco({
   );
 }
 
+/**
+ * Linha do RESUMO: label fixo à esquerda, valor cresce verticalmente conforme
+ * o texto (contentEditable, sem barra horizontal). Mantém estética de linha
+ * em campos curtos e expande quando necessário.
+ */
 function LinhaInput({
   label,
   valor,
@@ -779,19 +790,26 @@ function LinhaInput({
   onChange: (v: string) => void;
   readOnly?: boolean;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.textContent !== valor) {
+      ref.current.textContent = valor;
+    }
+  }, [valor]);
   return (
     <div className="flex flex-col sm:flex-row sm:items-baseline gap-1">
       <span className="font-bold text-[#2c4a70] text-sm min-w-[220px] flex-shrink-0">
         {label}:
       </span>
-      <input
-        type="text"
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-        readOnly={readOnly}
-        className={`flex-1 px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent print:border-none print:p-0 ${
+      <div
+        ref={ref}
+        contentEditable={!readOnly}
+        suppressContentEditableWarning
+        onBlur={(e) => onChange(e.currentTarget.textContent || '')}
+        className={`flex-1 px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent whitespace-pre-wrap break-words print:border-none print:p-0 ${
           readOnly ? 'cursor-default' : ''
         }`}
+        style={{ wordBreak: 'break-word', minHeight: '1.5em' }}
       />
     </div>
   );
