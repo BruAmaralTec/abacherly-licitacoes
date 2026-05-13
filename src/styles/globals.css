@@ -265,6 +265,14 @@ a:hover {
   100% { transform: rotate(360deg); }
 }
 
+/* Placeholder para [contentEditable] vazio — usa data-placeholder no elemento */
+[contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+  font-style: italic;
+}
+
 /* Print styles - Análise do Edital */
 @media print {
   body {
@@ -316,6 +324,21 @@ a:hover {
   textarea:empty::placeholder,
   input:empty::placeholder {
     color: transparent !important;
+  }
+
+  /* Análise em abas: na impressão mostra TODAS as abas empilhadas, ignora .hidden */
+  .secao-aba {
+    display: block !important;
+  }
+
+  /* contentEditable na impressão: tira borda e placeholder */
+  [contenteditable] {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  [contenteditable][data-placeholder]:empty::before {
+    content: '' !important;
   }
 
   @page {

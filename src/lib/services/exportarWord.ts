@@ -45,11 +45,11 @@ function campoResumo(label: string, valor: string): TableRow {
   });
 }
 
-function secao(titulo: string, conteudo: string): Paragraph[] {
+function secao(titulo: string, conteudo: string, corTitulo: string = COR_PRIMARIA): Paragraph[] {
   const paragraphs: Paragraph[] = [
     new Paragraph({
       children: [
-        new TextRun({ text: titulo, bold: true, size: 22, color: COR_PRIMARIA, font: 'Calibri' }),
+        new TextRun({ text: titulo, bold: true, size: 22, color: corTitulo, font: 'Calibri' }),
       ],
       spacing: { before: 300, after: 100 },
       border: {
@@ -77,6 +77,12 @@ function secao(titulo: string, conteudo: string): Paragraph[] {
   }
 
   return paragraphs;
+}
+
+/** Seção opcional — só renderiza se houver conteúdo (evita seções vazias no Word). */
+function secaoOpcional(titulo: string, conteudo: string | undefined, corTitulo?: string): Paragraph[] {
+  if (!conteudo?.trim()) return [];
+  return secao(titulo, conteudo, corTitulo);
 }
 
 export async function exportarAnaliseWord(licitacao: Licitacao, analise: AnaliseEdital) {
@@ -207,25 +213,36 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
               campoResumo('Validade da Proposta:', analise.validadeProposta || ''),
               campoResumo('Vigência Total Contrato:', analise.vigenciaTotalContrato || ''),
               campoResumo('Pagamento:', analise.pagamento || ''),
+              ...(analise.contratacaoMaoObra ? [campoResumo('Contratação de Mão de Obra:', analise.contratacaoMaoObra)] : []),
+              ...(analise.remotoOuPresencial ? [campoResumo('Remoto ou Presencial:', analise.remotoOuPresencial)] : []),
+              ...(analise.dedicacaoExclusivaPerfis ? [campoResumo('Dedicação Exclusiva:', analise.dedicacaoExclusivaPerfis)] : []),
               campoResumo('Recurso:', analise.recurso || ''),
               campoResumo('Proposta Adequada:', analise.propostaAdequada || ''),
               campoResumo('Assinatura do Contrato:', analise.assinaturaContrato || ''),
             ],
           }),
 
-          // ===== SEÇÕES DETALHADAS =====
+          // ===== ATENÇÕES (vermelho, antes de DOCUMENTAÇÃO) =====
+          ...secaoOpcional('ATENÇÃO — RISCOS E PONTOS CRÍTICOS', analise.atencoes, 'C0392B'),
+
+          // ===== SEÇÕES DETALHADAS — ordem padrão Abächerly =====
           ...secao('DOCUMENTAÇÃO', analise.documentacao || ''),
-          ...secao('GARANTIA DE CONTRATO', analise.garantiaContratoDetalhe || ''),
+          ...secaoOpcional('AMOSTRA', analise.amostra),
+          ...secaoOpcional('VISTORIA', analise.vistoria),
+          ...secao('GARANTIA DE CONTRATO', analise.garantiaContratoDetalhe || analise.garantiaDeContrato || ''),
+          ...secaoOpcional('PROVA DE CONCEITO', analise.provaDeConceito),
           ...secao('PROPOSTA', analise.proposta || ''),
           ...secao('PROPOSTA REVISADA', analise.propostaRevisada || ''),
+          ...secao('JULGAMENTO DA PROPOSTA', analise.julgamentoProposta || ''),
           ...secao('HABILITAÇÃO JURÍDICA', analise.habilitacaoJuridica || ''),
           ...secao('REGULARIDADE FISCAL E TRABALHISTA', analise.regularidadeFiscal || ''),
           ...secao('QUALIFICAÇÃO ECONÔMICA FINANCEIRA', analise.qualificacaoEconomica || ''),
           ...secao('QUALIFICAÇÃO TÉCNICA', analise.qualificacaoTecnica || ''),
           ...secao('DECLARAÇÕES', analise.declaracoes || ''),
-          ...secao('JULGAMENTO DA PROPOSTA', analise.julgamentoProposta || ''),
           ...secao('DECLARADO VENCEDOR / ASSINATURA DO CONTRATO', analise.declaradoVencedor || ''),
           ...secao('DO FATURAMENTO / ENTREGA DO SERVIÇO', analise.faturamentoEntrega || ''),
+          ...secaoOpcional('PRAZOS', analise.prazos),
+          ...secaoOpcional('OBSERVAÇÕES', analise.observacoes),
 
           // ===== RODAPÉ =====
           new Paragraph({

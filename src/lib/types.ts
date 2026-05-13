@@ -80,6 +80,9 @@ export interface AnaliseEdital {
   garantiaDeContrato?: string;
   prazos?: string;
   vistoria?: string;
+
+  // Aba dedicada "Atenções" (texto livre — riscos do edital).
+  atencoes?: string;
 }
 
 export interface Licitacao {

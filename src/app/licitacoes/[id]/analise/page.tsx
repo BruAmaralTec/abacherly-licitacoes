@@ -7,17 +7,36 @@ import {
   Printer,
   Save,
   Loader2,
-  FileText,
-  Download,
-  FileDown
+  FileDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import { PageSkeleton } from '@/components/Skeleton';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
+import Image from 'next/image';
 import { buscarLicitacao, atualizarLicitacao } from '@/lib/services/licitacoes';
 import { Licitacao, AnaliseEdital } from '@/lib/types';
+
+type TabId =
+  | 'atencoes'
+  | 'edital'
+  | 'objeto'
+  | 'tecnico'
+  | 'habilitacao'
+  | 'fiscal'
+  | 'economico';
+
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: 'atencoes', label: 'Atenções' },
+  { id: 'edital', label: 'Edital' },
+  { id: 'objeto', label: 'Objeto' },
+  { id: 'tecnico', label: 'Técnico' },
+  { id: 'habilitacao', label: 'Habilitação para concorrer' },
+  { id: 'fiscal', label: 'Reg. fiscal e trabalhista' },
+  { id: 'economico', label: 'Econômico' },
+];
 
 export default function AnalisePage() {
   const router = useRouter();
@@ -32,18 +51,21 @@ export default function AnalisePage() {
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
   const [exportando, setExportando] = useState(false);
-  const [menuExportar, setMenuExportar] = useState(false);
   const [dataHoje, setDataHoje] = useState('');
+  const [tabAtiva, setTabAtiva] = useState<TabId>('edital');
 
-  // Renderiza a data só no cliente para evitar hydration mismatch
   useEffect(() => {
-    setDataHoje(new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }));
+    setDataHoje(
+      new Date().toLocaleDateString('pt-BR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    );
   }, []);
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
-    }
+    if (!loading && !user) router.push('/login');
   }, [user, loading, router]);
 
   useEffect(() => {
@@ -96,7 +118,7 @@ export default function AnalisePage() {
     }
   };
 
-  const updateAnalise = (campo: keyof AnaliseEdital, valor: string) => {
+  const upd = (campo: keyof AnaliseEdital, valor: string) => {
     setAnalise((prev) => ({ ...prev, [campo]: valor }));
     setSalvo(false);
   };
@@ -118,8 +140,17 @@ export default function AnalisePage() {
 
   const dataCertame = licitacao.dataCertame?.toDate();
   const dataCertameStr = dataCertame
-    ? `${dataCertame.toLocaleDateString('pt-BR')} ${licitacao.horaCertame || dataCertame.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+    ? `${dataCertame.toLocaleDateString('pt-BR')} ${
+        licitacao.horaCertame ||
+        dataCertame.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+      }`
     : '';
+
+  const valorFmt = licitacao.valorEstimado
+    ? licitacao.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    : '';
+
+  const temAtencoes = !!analise.atencoes?.trim();
 
   return (
     <div className="min-h-screen w-full bg-[#f8fafc]">
@@ -128,7 +159,7 @@ export default function AnalisePage() {
       </div>
 
       <div className="w-full lg:pl-64 print:pl-0 min-h-screen flex flex-col">
-        {/* Toolbar - não aparece na impressão */}
+        {/* Toolbar */}
         <div className="print:hidden sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -140,20 +171,24 @@ export default function AnalisePage() {
               </Link>
               <div>
                 <h1 className="text-lg font-bold text-[#2c4a70]">Análise do Edital</h1>
-                <p className="text-xs text-[#1a2b45]/60">#{licitacao.numero} - {licitacao.orgao}</p>
+                <p className="text-xs text-[#1a2b45]/60">
+                  #{licitacao.numero} - {licitacao.orgao}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {salvo && (
-                <span className="text-sm text-green-600 font-medium">Salvo!</span>
-              )}
+              {salvo && <span className="text-sm text-green-600 font-medium">Salvo!</span>}
               {!isCliente && (
                 <button
                   onClick={handleSalvar}
                   disabled={salvando}
                   className="btn-secondary flex items-center gap-2 text-sm py-2 px-4"
                 >
-                  {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {salvando ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
                   Salvar
                 </button>
               )}
@@ -162,7 +197,11 @@ export default function AnalisePage() {
                 disabled={exportando}
                 className="btn-secondary flex items-center gap-2 text-sm py-2 px-4"
               >
-                {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                {exportando ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileDown className="w-4 h-4" />
+                )}
                 Word
               </button>
               <button
@@ -176,24 +215,67 @@ export default function AnalisePage() {
           </div>
         </div>
 
-        {/* Documento */}
+        {/* Tabs (não imprime) */}
+        <div className="print:hidden bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap gap-1 overflow-x-auto">
+            {TABS.map((t) => {
+              const ativo = tabAtiva === t.id;
+              const ehAtencoes = t.id === 'atencoes';
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTabAtiva(t.id)}
+                  className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-1.5 ${
+                    ativo
+                      ? ehAtencoes
+                        ? 'border-red-500 text-red-600'
+                        : 'border-[#2c4a70] text-[#2c4a70]'
+                      : 'border-transparent text-[#1a2b45]/60 hover:text-[#1a2b45]'
+                  }`}
+                >
+                  {ehAtencoes && (
+                    <AlertTriangle
+                      className={`w-4 h-4 ${temAtencoes ? 'text-red-500' : 'text-gray-400'}`}
+                    />
+                  )}
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Documento — tela mostra só a aba ativa, impressão mostra todas empilhadas */}
         <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 print:p-0">
           <div
             ref={printRef}
-            className="max-w-[800px] mx-auto bg-white shadow-lg print:shadow-none rounded-lg print:rounded-none"
+            className="max-w-[900px] mx-auto bg-white shadow-lg print:shadow-none rounded-lg print:rounded-none"
           >
-            {/* Conteúdo do documento */}
-            <div className="p-8 sm:p-12 print:p-[2cm] space-y-6 text-[#1a2b45] text-sm leading-relaxed">
-
-              {/* Cabeçalho */}
-              <div className="text-center border-b-2 border-[#d64b16] pb-6">
-                <h1 className="text-2xl font-bold text-[#2c4a70] tracking-wide">ANÁLISE DO EDITAL</h1>
-                <p className="text-base text-[#1a2b45]/80 mt-2">
-                  Nº Conlicitação <span className="font-bold">{licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—'}</span>
-                </p>
+            <div className="p-8 sm:p-12 print:p-[2cm] space-y-8 text-[#1a2b45] text-sm leading-relaxed">
+              {/* Cabeçalho — sempre visível na tela e na impressão */}
+              <div className="border-b-2 border-[#d64b16] pb-6 flex items-center justify-between gap-4">
+                <div className="text-left">
+                  <h1 className="text-2xl font-bold text-[#2c4a70] tracking-wide">
+                    ANÁLISE DO EDITAL
+                  </h1>
+                  <p className="text-base text-[#1a2b45]/80 mt-2">
+                    Nº Conlicitação{' '}
+                    <span className="font-bold">
+                      {licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—'}
+                    </span>
+                  </p>
+                </div>
+                <Image
+                  src="/images/logo-azul.png"
+                  alt="Abächerly Licitações"
+                  width={400}
+                  height={400}
+                  priority
+                  className="w-auto h-24 sm:h-28 print:h-24 flex-shrink-0"
+                />
               </div>
 
-              {/* Título do Edital */}
+              {/* Título do edital — sempre */}
               <div className="bg-[#2c4a70] text-white p-4 rounded-lg print:rounded-none text-center">
                 <p className="font-bold text-base">
                   EDITAL {licitacao.modalidade?.toUpperCase()} Nº {licitacao.numero}
@@ -206,237 +288,327 @@ export default function AnalisePage() {
                 )}
               </div>
 
-              {/* Resumo - Condições */}
-              <div>
-                <h2 className="text-base font-bold text-[#2c4a70] border-b border-[#d64b16]/30 pb-2 mb-4">
-                  RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO
-                </h2>
+              {/* ============ ABA: ATENÇÕES ============ */}
+              <SecaoAba ativa={tabAtiva === 'atencoes'} id="atencoes">
+                <Bloco titulo="ATENÇÃO — RISCOS E PONTOS CRÍTICOS" cor="vermelho">
+                  <CampoLongo
+                    valor={analise.atencoes || ''}
+                    onChange={(v) => upd('atencoes', v)}
+                    placeholder="Liste aqui os pontos de risco do edital com citação literal numerada (presencial obrigatório, subcontratação vedada, garantia, prazos curtos, etc.)..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+              </SecaoAba>
 
-                <div className="space-y-3">
-                  <Campo label="Objeto" valor={licitacao.objeto} />
-                  <Campo label="Órgão" valor={licitacao.orgao} />
-                  <Campo label="Data do Certame" valor={dataCertameStr} />
-
-                  <CampoEditavel
+              {/* ============ ABA: EDITAL ============ */}
+              <SecaoAba ativa={tabAtiva === 'edital'} id="edital">
+                <Bloco titulo="RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO">
+                  <Linha label="Data do Certame" valor={dataCertameStr} />
+                  <LinhaInput
                     label="Fuso Horário"
                     valor={analise.fusoHorario || ''}
-                    onChange={(v) => updateAnalise('fusoHorario', v)}
-                    placeholder="Ex: Horário de Brasília"
+                    onChange={(v) => upd('fusoHorario', v)}
+                    readOnly={isCliente}
                   />
-
-                  <Campo label="Modalidade" valor={licitacao.modalidade} />
-
-                  <CampoEditavel
+                  <Linha label="Modalidade" valor={licitacao.modalidade} />
+                  <LinhaInput
                     label="Base Legal"
                     valor={analise.baseLegal || licitacao.baseLegal || ''}
-                    onChange={(v) => updateAnalise('baseLegal', v)}
-                    placeholder="Ex: Lei Federal nº 14.133/2021"
+                    onChange={(v) => upd('baseLegal', v)}
+                    readOnly={isCliente}
                   />
-
-                  <CampoEditavel
-                    label="Enquadramento da Empresa"
-                    valor={analise.enquadramentoEmpresa || ''}
-                    onChange={(v) => updateAnalise('enquadramentoEmpresa', v)}
-                    placeholder="Ex: ME, EPP, Demais"
-                  />
-
-                  <div className="flex gap-4">
-                    <div className="flex-1">
-                      <Campo
-                        label="Valor"
-                        valor={licitacao.valorEstimado
-                          ? licitacao.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-                          : ''}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <CampoEditavel
-                        label="Intervalo de Lance"
-                        valor={analise.valorIntervaloLance || ''}
-                        onChange={(v) => updateAnalise('valorIntervaloLance', v)}
-                        placeholder="R$ 0,00"
-                      />
-                    </div>
-                  </div>
-
-                  <CampoEditavel
-                    label="Formalização"
-                    valor={analise.formalizacao || (licitacao.srp ? 'Ata de Registro de Preços' : '')}
-                    onChange={(v) => updateAnalise('formalizacao', v)}
-                    placeholder="Ex: Ata de Registro de Preços, Contrato"
-                  />
-
-                  <CampoEditavel
+                  <LinhaInput
                     label="Portal"
                     valor={analise.portal || ''}
-                    onChange={(v) => updateAnalise('portal', v)}
-                    placeholder="Ex: Licitanet, ComprasNet, BLL"
+                    onChange={(v) => upd('portal', v)}
+                    readOnly={isCliente}
                   />
-
-                  <CampoEditavel
+                  <Linha label="Valor" valor={valorFmt} />
+                  <LinhaInput
+                    label="Intervalo de Lance"
+                    valor={analise.valorIntervaloLance || ''}
+                    onChange={(v) => upd('valorIntervaloLance', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
                     label="Critério de Julgamento"
                     valor={analise.criterioJulgamento || ''}
-                    onChange={(v) => updateAnalise('criterioJulgamento', v)}
-                    placeholder="Ex: Menor Preço por Item"
+                    onChange={(v) => upd('criterioJulgamento', v)}
+                    readOnly={isCliente}
                   />
-
-                  <CampoEditavel
+                  <LinhaInput
                     label="Modo de Disputa"
                     valor={analise.modoDisputa || licitacao.modoDisputa || ''}
-                    onChange={(v) => updateAnalise('modoDisputa', v)}
-                    placeholder="Ex: Aberto, Aberto-Fechado"
+                    onChange={(v) => upd('modoDisputa', v)}
+                    readOnly={isCliente}
                   />
-
-                  <CampoEditavel
-                    label="Data Limite Cadastramento"
-                    valor={analise.dataLimiteCadastramento || ''}
-                    onChange={(v) => updateAnalise('dataLimiteCadastramento', v)}
-                    placeholder=""
-                  />
-
-                  <Campo label="Prazo de Entrega" valor={licitacao.prazoEntrega} />
-
-                  <CampoEditavel
-                    label="Garantia de Contrato"
-                    valor={analise.garantiaContrato || ''}
-                    onChange={(v) => updateAnalise('garantiaContrato', v)}
-                    placeholder=""
-                  />
-
-                  <CampoEditavel
+                  <LinhaInput
                     label="Validade da Proposta"
                     valor={analise.validadeProposta || ''}
-                    onChange={(v) => updateAnalise('validadeProposta', v)}
-                    placeholder="Ex: 60 dias"
+                    onChange={(v) => upd('validadeProposta', v)}
+                    readOnly={isCliente}
                   />
-
-                  <CampoEditavel
-                    label="Vigência Total Contrato"
-                    valor={analise.vigenciaTotalContrato || ''}
-                    onChange={(v) => updateAnalise('vigenciaTotalContrato', v)}
-                    placeholder=""
-                  />
-
-                  <CampoEditavel
-                    label="Pagamento"
-                    valor={analise.pagamento || ''}
-                    onChange={(v) => updateAnalise('pagamento', v)}
-                    placeholder=""
-                  />
-
-                  <CampoEditavel
+                  <LinhaInput
                     label="Recurso"
                     valor={analise.recurso || ''}
-                    onChange={(v) => updateAnalise('recurso', v)}
-                    placeholder=""
+                    onChange={(v) => upd('recurso', v)}
+                    readOnly={isCliente}
                   />
-
-                  <CampoEditavel
-                    label="Proposta Adequada e documentos de Habilitação"
+                  <LinhaInput
+                    label="Data Limite Credenciamento"
+                    valor={analise.dataLimiteCredenciamento || ''}
+                    onChange={(v) => upd('dataLimiteCredenciamento', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Data Limite Cadastramento"
+                    valor={analise.dataLimiteCadastramento || ''}
+                    onChange={(v) => upd('dataLimiteCadastramento', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Data Limite Esclarecimentos"
+                    valor={analise.dataLimiteEsclarecimentos || ''}
+                    onChange={(v) => upd('dataLimiteEsclarecimentos', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Proposta Adequada"
                     valor={analise.propostaAdequada || ''}
-                    onChange={(v) => updateAnalise('propostaAdequada', v)}
-                    placeholder=""
-                    multiline
+                    onChange={(v) => upd('propostaAdequada', v)}
+                    readOnly={isCliente}
                   />
+                </Bloco>
+              </SecaoAba>
 
-                  <CampoEditavel
+              {/* ============ ABA: OBJETO ============ */}
+              <SecaoAba ativa={tabAtiva === 'objeto'} id="objeto">
+                <Bloco titulo="OBJETO E EXECUÇÃO">
+                  <Linha label="Órgão" valor={licitacao.orgao} />
+                  <Linha label="Objeto" valor={licitacao.objeto} />
+                  <LinhaInput
+                    label="Vigência Total do Contrato"
+                    valor={analise.vigenciaTotalContrato || ''}
+                    onChange={(v) => upd('vigenciaTotalContrato', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Formalização"
+                    valor={analise.formalizacao || (licitacao.srp ? 'Ata de Registro de Preços' : '')}
+                    onChange={(v) => upd('formalizacao', v)}
+                    readOnly={isCliente}
+                  />
+                  <Linha label="Prazo de Entrega" valor={licitacao.prazoEntrega} />
+                  <LinhaInput
+                    label="Pagamento"
+                    valor={analise.pagamento || ''}
+                    onChange={(v) => upd('pagamento', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Garantia de Contrato (Resumo)"
+                    valor={analise.garantiaContrato || ''}
+                    onChange={(v) => upd('garantiaContrato', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
                     label="Assinatura do Contrato"
                     valor={analise.assinaturaContrato || ''}
-                    onChange={(v) => updateAnalise('assinaturaContrato', v)}
-                    placeholder=""
+                    onChange={(v) => upd('assinaturaContrato', v)}
+                    readOnly={isCliente}
                   />
-                </div>
-              </div>
+                </Bloco>
+                <Bloco titulo="GARANTIA DE CONTRATO">
+                  <CampoLongo
+                    valor={analise.garantiaContratoDetalhe || analise.garantiaDeContrato || ''}
+                    onChange={(v) => upd('garantiaContratoDetalhe', v)}
+                    placeholder="Detalhes da garantia: percentual, modalidades aceitas, prazos..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="DO FATURAMENTO / ENTREGA DO SERVIÇO">
+                  <CampoLongo
+                    valor={analise.faturamentoEntrega || ''}
+                    onChange={(v) => upd('faturamentoEntrega', v)}
+                    placeholder="Condições de faturamento, banco preferencial, certidões exigidas..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="PRAZOS">
+                  <CampoLongo
+                    valor={analise.prazos || ''}
+                    onChange={(v) => upd('prazos', v)}
+                    placeholder="Prazos adicionais não cobertos acima..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+              </SecaoAba>
 
-              {/* Seções detalhadas */}
-              <SecaoEditavel
-                titulo="DOCUMENTAÇÃO"
-                valor={analise.documentacao || ''}
-                onChange={(v) => updateAnalise('documentacao', v)}
-                placeholder="Detalhes sobre a documentação exigida..."
-              />
+              {/* ============ ABA: TÉCNICO ============ */}
+              <SecaoAba ativa={tabAtiva === 'tecnico'} id="tecnico">
+                <Bloco titulo="QUALIFICAÇÃO TÉCNICA">
+                  <CampoLongo
+                    valor={analise.qualificacaoTecnica || ''}
+                    onChange={(v) => upd('qualificacaoTecnica', v)}
+                    placeholder="Atestados de capacidade técnica, requisitos do objeto, perfis profissionais..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="DOCUMENTAÇÃO">
+                  <CampoLongo
+                    valor={analise.documentacao || ''}
+                    onChange={(v) => upd('documentacao', v)}
+                    placeholder="Documentação exigida, anexos, questionamentos, credenciamento..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="PROVA DE CONCEITO">
+                  <CampoLongo
+                    valor={analise.provaDeConceito || ''}
+                    onChange={(v) => upd('provaDeConceito', v)}
+                    placeholder="Itens, percentual mínimo, prazo, formato — vazio se não exigida..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="AMOSTRA">
+                  <CampoLongo
+                    valor={analise.amostra || ''}
+                    onChange={(v) => upd('amostra', v)}
+                    placeholder="Detalhes da amostra exigida — vazio se não houver..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="VISTORIA">
+                  <CampoLongo
+                    valor={analise.vistoria || ''}
+                    onChange={(v) => upd('vistoria', v)}
+                    placeholder="Procedimento, agendamento, declaração de abstenção..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="PROPOSTA">
+                  <CampoLongo
+                    valor={analise.proposta || ''}
+                    onChange={(v) => upd('proposta', v)}
+                    placeholder="Como enviar, conteúdo exigido, planilha de custos..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="PROPOSTA REVISADA">
+                  <CampoLongo
+                    valor={analise.propostaRevisada || ''}
+                    onChange={(v) => upd('propostaRevisada', v)}
+                    placeholder="Condições para proposta revisada após negociação..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="JULGAMENTO DA PROPOSTA">
+                  <CampoLongo
+                    valor={analise.julgamentoProposta || ''}
+                    onChange={(v) => upd('julgamentoProposta', v)}
+                    placeholder="Critérios de aceitabilidade, negociação, MPE..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+              </SecaoAba>
 
-              <SecaoEditavel
-                titulo="GARANTIA DE CONTRATO"
-                valor={analise.garantiaContratoDetalhe || ''}
-                onChange={(v) => updateAnalise('garantiaContratoDetalhe', v)}
-                placeholder="Detalhes sobre garantia contratual..."
-              />
+              {/* ============ ABA: HABILITAÇÃO PARA CONCORRER ============ */}
+              <SecaoAba ativa={tabAtiva === 'habilitacao'} id="habilitacao">
+                <Bloco titulo="ENQUADRAMENTO DA EMPRESA">
+                  <CampoLongo
+                    valor={analise.enquadramentoEmpresa || ''}
+                    onChange={(v) => upd('enquadramentoEmpresa', v)}
+                    placeholder="ME, EPP, Demais, etc..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="HABILITAÇÃO JURÍDICA">
+                  <CampoLongo
+                    valor={analise.habilitacaoJuridica || ''}
+                    onChange={(v) => upd('habilitacaoJuridica', v)}
+                    placeholder="SICAF, CEIS, CNEP, CNIA, ato constitutivo..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="DECLARAÇÕES">
+                  <CampoLongo
+                    valor={analise.declaracoes || ''}
+                    onChange={(v) => upd('declaracoes', v)}
+                    placeholder="MPE, menor, trabalho degradante, reserva de cargos..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="DECLARADO VENCEDOR / ASSINATURA DO CONTRATO">
+                  <CampoLongo
+                    valor={analise.declaradoVencedor || ''}
+                    onChange={(v) => upd('declaradoVencedor', v)}
+                    placeholder="Prazo, certificação digital, termo de responsabilidade..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+              </SecaoAba>
 
-              <SecaoEditavel
-                titulo="PROPOSTA"
-                valor={analise.proposta || ''}
-                onChange={(v) => updateAnalise('proposta', v)}
-                placeholder="Requisitos da proposta..."
-              />
+              {/* ============ ABA: REGULARIZAÇÃO FISCAL E TRABALHISTA ============ */}
+              <SecaoAba ativa={tabAtiva === 'fiscal'} id="fiscal">
+                <Bloco titulo="REGULARIDADE FISCAL E TRABALHISTA">
+                  <CampoLongo
+                    valor={analise.regularidadeFiscal || ''}
+                    onChange={(v) => upd('regularidadeFiscal', v)}
+                    placeholder="CNPJ, Fazenda Federal/Estadual/Municipal, FGTS, CNDT..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="CONTRATAÇÃO DE MÃO DE OBRA">
+                  <CampoLongo
+                    valor={analise.contratacaoMaoObra || ''}
+                    onChange={(v) => upd('contratacaoMaoObra', v)}
+                    placeholder="CLT / PJ / Subcontratação..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="REMOTO OU PRESENCIAL">
+                  <CampoLongo
+                    valor={analise.remotoOuPresencial || ''}
+                    onChange={(v) => upd('remotoOuPresencial', v)}
+                    placeholder="Citação literal do item do edital com endereço e regime..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="DEDICAÇÃO EXCLUSIVA DOS PERFIS">
+                  <CampoLongo
+                    valor={analise.dedicacaoExclusivaPerfis || ''}
+                    onChange={(v) => upd('dedicacaoExclusivaPerfis', v)}
+                    placeholder="Sim/Não + referência ao item..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+              </SecaoAba>
 
-              <SecaoEditavel
-                titulo="PROPOSTA REVISADA"
-                valor={analise.propostaRevisada || ''}
-                onChange={(v) => updateAnalise('propostaRevisada', v)}
-                placeholder="Condições para proposta revisada..."
-              />
+              {/* ============ ABA: ECONÔMICO ============ */}
+              <SecaoAba ativa={tabAtiva === 'economico'} id="economico">
+                <Bloco titulo="QUALIFICAÇÃO ECONÔMICA FINANCEIRA">
+                  <CampoLongo
+                    valor={analise.qualificacaoEconomica || ''}
+                    onChange={(v) => upd('qualificacaoEconomica', v)}
+                    placeholder="Balanço patrimonial, índices LG/SG/LC, patrimônio líquido mínimo..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+                <Bloco titulo="OBSERVAÇÕES">
+                  <CampoLongo
+                    valor={analise.observacoes || ''}
+                    onChange={(v) => upd('observacoes', v)}
+                    placeholder="Anotações operacionais (pendências internas, aguardando documentos, etc.)..."
+                    readOnly={isCliente}
+                  />
+                </Bloco>
+              </SecaoAba>
 
-              <SecaoEditavel
-                titulo="HABILITAÇÃO JURÍDICA"
-                valor={analise.habilitacaoJuridica || ''}
-                onChange={(v) => updateAnalise('habilitacaoJuridica', v)}
-                placeholder="Documentos de habilitação jurídica..."
-              />
-
-              <SecaoEditavel
-                titulo="REGULARIDADE FISCAL E TRABALHISTA"
-                valor={analise.regularidadeFiscal || ''}
-                onChange={(v) => updateAnalise('regularidadeFiscal', v)}
-                placeholder="Documentos de regularidade fiscal e trabalhista..."
-              />
-
-              <SecaoEditavel
-                titulo="QUALIFICAÇÃO ECONÔMICA FINANCEIRA"
-                valor={analise.qualificacaoEconomica || ''}
-                onChange={(v) => updateAnalise('qualificacaoEconomica', v)}
-                placeholder="Requisitos de qualificação econômico-financeira..."
-              />
-
-              <SecaoEditavel
-                titulo="QUALIFICAÇÃO TÉCNICA"
-                valor={analise.qualificacaoTecnica || ''}
-                onChange={(v) => updateAnalise('qualificacaoTecnica', v)}
-                placeholder="Requisitos de qualificação técnica..."
-              />
-
-              <SecaoEditavel
-                titulo="DECLARAÇÕES"
-                valor={analise.declaracoes || ''}
-                onChange={(v) => updateAnalise('declaracoes', v)}
-                placeholder="Declarações exigidas..."
-              />
-
-              <SecaoEditavel
-                titulo="JULGAMENTO DA PROPOSTA"
-                valor={analise.julgamentoProposta || ''}
-                onChange={(v) => updateAnalise('julgamentoProposta', v)}
-                placeholder="Critérios de julgamento..."
-              />
-
-              <SecaoEditavel
-                titulo="DECLARADO VENCEDOR / ASSINATURA DO CONTRATO"
-                valor={analise.declaradoVencedor || ''}
-                onChange={(v) => updateAnalise('declaradoVencedor', v)}
-                placeholder="Procedimentos após declaração do vencedor..."
-              />
-
-              <SecaoEditavel
-                titulo="DO FATURAMENTO / ENTREGA DO SERVIÇO"
-                valor={analise.faturamentoEntrega || ''}
-                onChange={(v) => updateAnalise('faturamentoEntrega', v)}
-                placeholder="Condições de faturamento e entrega..."
-              />
-
-              {/* Rodapé */}
+              {/* Rodapé — sempre */}
               <div className="border-t-2 border-[#d64b16] pt-6 mt-8">
                 <p className="text-xs text-[#1a2b45]/60 italic">
-                  Em caso de dúvidas consultar o edital e seus anexos, este resumo não exime a leitura total dos documentos oficiais da presente licitação.
+                  Em caso de dúvidas consultar o edital e seus anexos, este resumo não exime a
+                  leitura total dos documentos oficiais da presente licitação.
                 </p>
                 <div className="mt-6 text-center">
                   <p className="text-sm text-[#1a2b45]/80" suppressHydrationWarning>
@@ -454,90 +626,136 @@ export default function AnalisePage() {
           <Footer />
         </div>
       </div>
+
+      {/* Estilo para impressão: mostra todas as abas empilhadas, esconde estado tabAtiva */}
+      <style jsx global>{`
+        @media print {
+          .secao-aba {
+            display: block !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
 
 // ==================== COMPONENTES AUXILIARES ====================
 
-function Campo({ label, valor }: { label: string; valor: string }) {
+function SecaoAba({
+  ativa,
+  id,
+  children,
+}: {
+  ativa: boolean;
+  id: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      data-aba={id}
+      className={`secao-aba space-y-6 ${ativa ? '' : 'hidden'}`}
+    >
+      {children}
+    </section>
+  );
+}
+
+function Bloco({
+  titulo,
+  cor = 'azul',
+  children,
+}: {
+  titulo: string;
+  cor?: 'azul' | 'vermelho';
+  children: React.ReactNode;
+}) {
+  const borda = cor === 'vermelho' ? 'border-red-500' : 'border-[#d64b16]/30';
+  const corTitulo = cor === 'vermelho' ? 'text-red-700' : 'text-[#2c4a70]';
+  return (
+    <div>
+      <h2 className={`text-base font-bold ${corTitulo} border-b ${borda} pb-2 mb-4`}>
+        {titulo}
+      </h2>
+      <div className="space-y-3">{children}</div>
+    </div>
+  );
+}
+
+function Linha({ label, valor }: { label: string; valor?: string }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-baseline gap-1">
-      <span className="font-bold text-[#2c4a70] text-sm min-w-[200px] flex-shrink-0">{label}:</span>
+      <span className="font-bold text-[#2c4a70] text-sm min-w-[220px] flex-shrink-0">
+        {label}:
+      </span>
       <span className="text-[#1a2b45] print:text-black">{valor || '—'}</span>
     </div>
   );
 }
 
-function CampoEditavel({
+function LinhaInput({
   label,
   valor,
   onChange,
-  placeholder,
-  multiline = false,
-  readOnly = false,
+  readOnly,
 }: {
   label: string;
   valor: string;
   onChange: (v: string) => void;
-  placeholder?: string;
-  multiline?: boolean;
   readOnly?: boolean;
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-baseline gap-1">
-      <span className="font-bold text-[#2c4a70] text-sm min-w-[200px] flex-shrink-0">{label}:</span>
-      <div className="flex-1">
-        {multiline ? (
-          <textarea
-            value={valor}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            rows={2}
-            readOnly={readOnly}
-            className={`w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent resize-none print:border-none print:p-0 ${readOnly ? 'cursor-default' : ''}`}
-          />
-        ) : (
-          <input
-            type="text"
-            value={valor}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            readOnly={readOnly}
-            className={`w-full px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent print:border-none print:p-0 ${readOnly ? 'cursor-default' : ''}`}
-          />
-        )}
-      </div>
+      <span className="font-bold text-[#2c4a70] text-sm min-w-[220px] flex-shrink-0">
+        {label}:
+      </span>
+      <input
+        type="text"
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
+        className={`flex-1 px-2 py-1 text-sm border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none bg-transparent print:border-none print:p-0 ${
+          readOnly ? 'cursor-default' : ''
+        }`}
+      />
     </div>
   );
 }
 
-function SecaoEditavel({
-  titulo,
+/**
+ * Campo de texto longo SEM barra de rolagem — usa contentEditable.
+ * Cresce naturalmente conforme conteúdo, preserva quebras de linha.
+ * No print, vira texto contínuo sem qualquer borda.
+ */
+function CampoLongo({
   valor,
   onChange,
   placeholder,
-  readOnly = false,
+  readOnly,
 }: {
-  titulo: string;
   valor: string;
   onChange: (v: string) => void;
   placeholder?: string;
   readOnly?: boolean;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current && ref.current.textContent !== valor) {
+      ref.current.textContent = valor;
+    }
+  }, [valor]);
+
   return (
-    <div>
-      <h2 className="text-base font-bold text-[#2c4a70] border-b border-[#d64b16]/30 pb-2 mb-3">
-        {titulo}
-      </h2>
-      <textarea
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={4}
-        readOnly={readOnly}
-        className={`w-full px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent resize-y min-h-[60px] print:border-none print:p-0 print:min-h-0 ${readOnly ? 'cursor-default' : ''}`}
-      />
-    </div>
+    <div
+      ref={ref}
+      contentEditable={!readOnly}
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onBlur={(e) => onChange(e.currentTarget.textContent || '')}
+      className={`campo-longo px-3 py-2 text-sm border border-dashed border-gray-300 rounded-lg focus:border-[#4674e8] focus:outline-none bg-transparent min-h-[60px] whitespace-pre-wrap break-words print:border-none print:p-0 print:min-h-0 ${
+        readOnly ? 'cursor-default' : ''
+      }`}
+      style={{ wordBreak: 'break-word' }}
+    />
   );
 }
