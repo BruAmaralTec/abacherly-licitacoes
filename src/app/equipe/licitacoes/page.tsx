@@ -7,17 +7,23 @@ import {
   FileText,
   Plus,
   Search,
-  Filter,
-  Calendar,
   Building2,
   Loader2,
   X,
+  Trash2,
+  Archive,
+  ArchiveRestore,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import Footer from '@/components/Footer';
 import { PageSkeleton } from '@/components/Skeleton';
-import { listarTodasLicitacoes } from '@/lib/services/licitacoes';
+import {
+  listarTodasLicitacoes,
+  excluirLicitacao,
+  arquivarLicitacao,
+} from '@/lib/services/licitacoes';
 import { listarClientes } from '@/lib/services/clientes';
 import { Licitacao, ClienteInfo, STATUS_LABELS } from '@/lib/types';
 
@@ -47,6 +53,12 @@ export default function EquipeLicitacoesPage() {
   const [periodo, setPeriodo] = useState<Periodo>('todos');
   const [dataInicial, setDataInicial] = useState('');
   const [dataFinal, setDataFinal] = useState('');
+  const [verArquivadas, setVerArquivadas] = useState(false);
+
+  // Seleção em lote
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [acaoEmAndamento, setAcaoEmAndamento] = useState(false);
+  const [dropdownAberto, setDropdownAberto] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -107,6 +119,10 @@ export default function EquipeLicitacoesPage() {
     }
 
     return licitacoes.filter((l) => {
+      // Arquivadas: só aparecem quando o toggle estiver ligado
+      if (!verArquivadas && l.arquivada) return false;
+      if (verArquivadas && !l.arquivada) return false;
+
       // Status
       if (filterStatus === 'em_trabalho') {
         if (l.status === 'concluida' || l.status === 'cancelada') return false;
@@ -150,6 +166,7 @@ export default function EquipeLicitacoesPage() {
     periodo,
     dataInicial,
     dataFinal,
+    verArquivadas,
   ]);
 
   function limparFiltros() {
@@ -160,6 +177,63 @@ export default function EquipeLicitacoesPage() {
     setPeriodo('todos');
     setDataInicial('');
     setDataFinal('');
+    setVerArquivadas(false);
+  }
+
+  function toggleSelecionado(id: string) {
+    setSelecionados((prev) => {
+      const novo = new Set(prev);
+      novo.has(id) ? novo.delete(id) : novo.add(id);
+      return novo;
+    });
+  }
+  function selecionarTodos(marcar: boolean) {
+    setSelecionados(
+      marcar ? new Set(licitacoesFiltradas.map((l) => l.id!).filter(Boolean)) : new Set()
+    );
+  }
+  const todosSelecionados =
+    licitacoesFiltradas.length > 0 &&
+    licitacoesFiltradas.every((l) => l.id && selecionados.has(l.id));
+
+  async function acaoArquivar(arquivar: boolean) {
+    if (selecionados.size === 0) return;
+    const verbo = arquivar ? 'arquivar' : 'desarquivar';
+    if (!confirm(`Confirmar ${verbo} ${selecionados.size} licitação(ões)?`)) return;
+    setAcaoEmAndamento(true);
+    setDropdownAberto(false);
+    try {
+      await Promise.all(Array.from(selecionados).map((id) => arquivarLicitacao(id, arquivar)));
+      setLicitacoes((prev) =>
+        prev.map((l) => (l.id && selecionados.has(l.id) ? { ...l, arquivada: arquivar } : l))
+      );
+      setSelecionados(new Set());
+    } catch (e: any) {
+      alert(`Erro ao ${verbo}: ${e?.message || e}`);
+    } finally {
+      setAcaoEmAndamento(false);
+    }
+  }
+
+  async function acaoDeletar() {
+    if (selecionados.size === 0) return;
+    if (
+      !confirm(
+        `ATENÇÃO: deletar permanentemente ${selecionados.size} licitação(ões)? Esta ação não pode ser desfeita.`
+      )
+    )
+      return;
+    setAcaoEmAndamento(true);
+    setDropdownAberto(false);
+    try {
+      await Promise.all(Array.from(selecionados).map((id) => excluirLicitacao(id)));
+      setLicitacoes((prev) => prev.filter((l) => !(l.id && selecionados.has(l.id))));
+      setSelecionados(new Set());
+    } catch (e: any) {
+      alert(`Erro ao deletar: ${e?.message || e}`);
+    } finally {
+      setAcaoEmAndamento(false);
+    }
   }
 
   if (loading || !user) {
@@ -295,18 +369,93 @@ export default function EquipeLicitacoesPage() {
             </div>
           ) : (
             <>
-              <p className="text-sm text-[#1a2b45]/60 mb-4">
-                {licitacoesFiltradas.length} licitação(ões) encontrada(s)
-              </p>
+              {/* Barra de seleção e ações */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                <p className="text-sm text-[#1a2b45]/60">
+                  {licitacoesFiltradas.length} licitação(ões) encontrada(s)
+                  {selecionados.size > 0 && (
+                    <span className="ml-3 font-bold text-[#2c4a70]">
+                      — {selecionados.size} selecionada(s)
+                    </span>
+                  )}
+                </p>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-[#1a2b45]/70 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={verArquivadas}
+                      onChange={(e) => {
+                        setVerArquivadas(e.target.checked);
+                        setSelecionados(new Set());
+                      }}
+                      className="w-4 h-4 cursor-pointer accent-[#4674e8]"
+                    />
+                    Ver arquivadas
+                  </label>
+                  {selecionados.size > 0 && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setDropdownAberto((v) => !v)}
+                        disabled={acaoEmAndamento}
+                        className="btn-secondary flex items-center gap-2 text-sm py-2 px-4"
+                      >
+                        {acaoEmAndamento ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <>
+                            Ação <ChevronDown className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                      {dropdownAberto && !acaoEmAndamento && (
+                        <div className="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-20 overflow-hidden">
+                          {!verArquivadas && (
+                            <button
+                              onClick={() => acaoArquivar(true)}
+                              className="w-full px-4 py-2 text-sm text-left flex items-center gap-2 hover:bg-gray-50 text-[#1a2b45]"
+                            >
+                              <Archive className="w-4 h-4 text-amber-600" />
+                              Arquivar selecionadas
+                            </button>
+                          )}
+                          {verArquivadas && (
+                            <button
+                              onClick={() => acaoArquivar(false)}
+                              className="w-full px-4 py-2 text-sm text-left flex items-center gap-2 hover:bg-gray-50 text-[#1a2b45]"
+                            >
+                              <ArchiveRestore className="w-4 h-4 text-green-600" />
+                              Desarquivar selecionadas
+                            </button>
+                          )}
+                          <button
+                            onClick={acaoDeletar}
+                            className="w-full px-4 py-2 text-sm text-left flex items-center gap-2 hover:bg-red-50 text-red-600 border-t border-gray-100"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            Deletar permanentemente
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Mobile cards */}
               <div className="block lg:hidden space-y-3">
                 {licitacoesFiltradas.map((lic) => (
-                  <Link
-                    key={lic.id}
-                    href={`/licitacoes/${lic.id}/analise`}
-                    className="card p-4 block"
-                  >
+                  <div key={lic.id} className="card p-4 relative">
+                    <input
+                      type="checkbox"
+                      checked={!!(lic.id && selecionados.has(lic.id))}
+                      onChange={() => lic.id && toggleSelecionado(lic.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute top-3 left-3 w-4 h-4 accent-[#4674e8] cursor-pointer"
+                    />
+                    <Link
+                      href={`/licitacoes/${lic.id}/analise`}
+                      className="block pl-7"
+                    >
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <span className="font-bold text-[#2c4a70]">#{lic.numero}</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-bold ${statusConfig[lic.status]?.bg || 'bg-gray-50'} ${statusConfig[lic.status]?.class || 'text-gray-700'}`}>
@@ -326,7 +475,8 @@ export default function EquipeLicitacoesPage() {
                         {lic.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
-                  </Link>
+                    </Link>
+                  </div>
                 ))}
               </div>
 
@@ -336,6 +486,14 @@ export default function EquipeLicitacoesPage() {
                   <table className="w-full">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="py-3 px-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={todosSelecionados}
+                            onChange={(e) => selecionarTodos(e.target.checked)}
+                            className="w-4 h-4 accent-[#4674e8] cursor-pointer"
+                          />
+                        </th>
                         <th className="text-left py-3 px-4 text-sm font-bold text-[#1a2b45]/60">Nº</th>
                         <th className="text-left py-3 px-4 text-sm font-bold text-[#1a2b45]/60">Cliente</th>
                         <th className="text-left py-3 px-4 text-sm font-bold text-[#1a2b45]/60">Objeto / Órgão</th>
@@ -352,6 +510,14 @@ export default function EquipeLicitacoesPage() {
                           className="border-t border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                           onClick={() => router.push(`/licitacoes/${lic.id}/analise`)}
                         >
+                          <td className="py-4 px-4" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={!!(lic.id && selecionados.has(lic.id))}
+                              onChange={() => lic.id && toggleSelecionado(lic.id)}
+                              className="w-4 h-4 accent-[#4674e8] cursor-pointer"
+                            />
+                          </td>
                           <td className="py-4 px-4 font-bold text-[#2c4a70]">{lic.numero}</td>
                           <td className="py-4 px-4">
                             <p className="text-[#1a2b45] truncate max-w-[180px]">

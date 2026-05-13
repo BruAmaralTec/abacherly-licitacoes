@@ -41,3 +41,7 @@ export async function atualizarStatus(id: string, status: LicitacaoStatus): Prom
 export async function excluirLicitacao(id: string): Promise<void> {
   await api.delete(`/api/licitacoes/${id}`);
 }
+
+export async function arquivarLicitacao(id: string, arquivada = true): Promise<void> {
+  await atualizarLicitacao(id, { arquivada });
+}

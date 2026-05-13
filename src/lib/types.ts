@@ -134,6 +134,7 @@ export interface Licitacao {
   srp?: boolean;
   analise?: AnaliseEdital;
   analiseIaId?: string;
+  arquivada?: boolean; // marcação operacional — esconde da lista padrão
   clientId: string;
   criadoPor: string;
   criadoEm: Timestamp;
