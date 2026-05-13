@@ -59,6 +59,15 @@ scripts/vercel-sa-key.json
 coverage/
 .nyc_output/
 
+# Python (agente Cloud Run)
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
 # Misc
 *.log
 *.tmp
