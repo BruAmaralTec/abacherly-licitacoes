@@ -39,8 +39,18 @@ export default function AgenteAnalisePage() {
   const [progConv, setProgConv] = useState<number>(0);
   const [progAnalise, setProgAnalise] = useState<number>(0);
   const [mensagemFase, setMensagemFase] = useState<string>('');
+  const [mostrarBarraConv, setMostrarBarraConv] = useState<boolean>(false);
   const tempoInicioAnaliseRef = useRef<number | null>(null);
   const tempoEstimadoAnaliseRef = useRef<number>(120000); // 2min default
+
+  // Mimes que o Gemini lê direto — não precisam de conversão.
+  const MIMES_DIRETOS = new Set([
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'text/plain',
+  ]);
+  const EXTS_DIRETAS = /\.(pdf|png|jpe?g|txt)$/i;
 
   useEffect(() => {
     if (!loading && !user) router.push('/login');
@@ -103,6 +113,13 @@ export default function AgenteAnalisePage() {
     setProgConv(0);
     setProgAnalise(0);
     setMensagemFase('');
+
+    // Só exibe a barra de conversão se algum arquivo precisar de fato ser convertido
+    // (Gemini lê PDF/PNG/JPG/TXT direto — sem barra para esses).
+    const precisaConverter = arquivos.some(
+      (f) => !MIMES_DIRETOS.has(f.type) && !EXTS_DIRETAS.test(f.name)
+    );
+    setMostrarBarraConv(precisaConverter);
 
     // Estimativa de tempo da análise: 60s base + 20s/MB de arquivos
     const tamanhoTotalMB = arquivos.reduce((s, f) => s + f.size, 0) / (1024 * 1024);
@@ -275,19 +292,21 @@ export default function AgenteAnalisePage() {
                 </div>
               </div>
 
-              {/* Barra 1: Conversão (concluída quando passa para fase 'analisando') */}
-              <BarraProgresso
-                titulo="Conversão para PDF"
-                valor={progConv}
-                ativo={fase === 'convertendo'}
-                concluido={fase === 'analisando'}
-              />
+              {/* Barra 1: Conversão (só se há arquivos office) */}
+              {mostrarBarraConv && (
+                <BarraProgresso
+                  titulo="Conversão para PDF"
+                  valor={progConv}
+                  ativo={fase === 'convertendo'}
+                  concluido={fase === 'analisando'}
+                />
+              )}
 
               {/* Barra 2: Análise IA */}
               <BarraProgresso
                 titulo="Análise com IA (Gemini)"
                 valor={progAnalise}
-                ativo={fase === 'analisando'}
+                ativo={fase === 'analisando' || !mostrarBarraConv}
                 concluido={false}
               />
 
