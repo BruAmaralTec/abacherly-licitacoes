@@ -85,6 +85,28 @@ function secaoOpcional(titulo: string, conteudo: string | undefined, corTitulo?:
   return secao(titulo, conteudo, corTitulo);
 }
 
+/**
+ * Helper para checar se um bloco deve aparecer no Word:
+ * só aparece se o analista marcou Conferido E Enviar no doc cliente.
+ */
+function podeEnviar(analise: AnaliseEdital, blocoId: string): boolean {
+  const f = analise.flagsExport?.[blocoId];
+  return !!(f?.conferido && f?.enviar);
+}
+
+/** Versão de secao que respeita flagsExport. */
+function secaoFiltrada(
+  blocoId: string,
+  analise: AnaliseEdital,
+  titulo: string,
+  conteudo: string | undefined,
+  corTitulo?: string
+): Paragraph[] {
+  if (!podeEnviar(analise, blocoId)) return [];
+  if (!conteudo?.trim()) return [];
+  return secao(titulo, conteudo, corTitulo);
+}
+
 export async function exportarAnaliseWord(licitacao: Licitacao, analise: AnaliseEdital) {
   const dataCertame = licitacao.dataCertame?.toDate();
   const dataCertameStr = dataCertame
@@ -175,74 +197,77 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
               ]
             : []),
 
-          // ===== RESUMO =====
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: 'RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO',
-                bold: true,
-                size: 22,
-                color: COR_PRIMARIA,
-                font: 'Calibri',
-              }),
-            ],
-            spacing: { before: 300, after: 200 },
-            border: {
-              bottom: { style: BorderStyle.SINGLE, size: 1, color: COR_ACCENT },
-            },
-          }),
-
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              campoResumo('Objeto:', licitacao.objeto),
-              campoResumo('Órgão:', licitacao.orgao),
-              campoResumo('Data do Certame:', dataCertameStr),
-              campoResumo('Fuso Horário:', analise.fusoHorario || ''),
-              campoResumo('Modalidade:', licitacao.modalidade || ''),
-              campoResumo('Base Legal:', analise.baseLegal || licitacao.baseLegal || ''),
-              campoResumo('Enquadramento:', analise.enquadramentoEmpresa || ''),
-              campoResumo('Valor:', `${valorStr}    Intervalo de Lance: ${analise.valorIntervaloLance || ''}`),
-              campoResumo('Formalização:', analise.formalizacao || (licitacao.srp ? 'Ata de Registro de Preços' : '')),
-              campoResumo('Portal:', analise.portal || ''),
-              campoResumo('Critério de Julgamento:', analise.criterioJulgamento || ''),
-              campoResumo('Modo de Disputa:', analise.modoDisputa || licitacao.modoDisputa || ''),
-              campoResumo('Data Limite Cadastramento:', analise.dataLimiteCadastramento || ''),
-              campoResumo('Prazo de Entrega:', licitacao.prazoEntrega || ''),
-              campoResumo('Garantia de Contrato:', analise.garantiaContrato || ''),
-              campoResumo('Validade da Proposta:', analise.validadeProposta || ''),
-              campoResumo('Vigência Total Contrato:', analise.vigenciaTotalContrato || ''),
-              campoResumo('Pagamento:', analise.pagamento || ''),
-              ...(analise.contratacaoMaoObra ? [campoResumo('Contratação de Mão de Obra:', analise.contratacaoMaoObra)] : []),
-              ...(analise.remotoOuPresencial ? [campoResumo('Remoto ou Presencial:', analise.remotoOuPresencial)] : []),
-              ...(analise.dedicacaoExclusivaPerfis ? [campoResumo('Dedicação Exclusiva:', analise.dedicacaoExclusivaPerfis)] : []),
-              campoResumo('Recurso:', analise.recurso || ''),
-              campoResumo('Proposta Adequada:', analise.propostaAdequada || ''),
-              campoResumo('Assinatura do Contrato:', analise.assinaturaContrato || ''),
-            ],
-          }),
+          // ===== RESUMO (só se Conferido + Enviar marcados para o bloco "resumo") =====
+          ...(podeEnviar(analise, 'resumo')
+            ? [
+                new Paragraph({
+                  children: [
+                    new TextRun({
+                      text: 'RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO',
+                      bold: true,
+                      size: 22,
+                      color: COR_PRIMARIA,
+                      font: 'Calibri',
+                    }),
+                  ],
+                  spacing: { before: 300, after: 200 },
+                  border: {
+                    bottom: { style: BorderStyle.SINGLE, size: 1, color: COR_ACCENT },
+                  },
+                }),
+                new Table({
+                  width: { size: 100, type: WidthType.PERCENTAGE },
+                  rows: [
+                    campoResumo('Objeto:', analise.objeto || licitacao.objeto),
+                    campoResumo('Órgão:', analise.orgao || licitacao.orgao),
+                    campoResumo('Data do Certame:', analise.dataCertame || dataCertameStr),
+                    campoResumo('Fuso Horário:', analise.fusoHorario || ''),
+                    campoResumo('Modalidade:', analise.modalidade || licitacao.modalidade || ''),
+                    campoResumo('Base Legal:', analise.baseLegal || licitacao.baseLegal || ''),
+                    campoResumo('Enquadramento:', analise.enquadramentoEmpresa || ''),
+                    campoResumo('Valor:', `${analise.valor || valorStr}    Intervalo de Lance: ${analise.valorIntervaloLance || ''}`),
+                    campoResumo('Formalização:', analise.formalizacao || (licitacao.srp ? 'Ata de Registro de Preços' : '')),
+                    campoResumo('Portal:', analise.portal || ''),
+                    campoResumo('Critério de Julgamento:', analise.criterioJulgamento || ''),
+                    campoResumo('Modo de Disputa:', analise.modoDisputa || licitacao.modoDisputa || ''),
+                    campoResumo('Data Limite Cadastramento:', analise.dataLimiteCadastramento || ''),
+                    campoResumo('Prazo de Entrega:', analise.prazoEntrega || licitacao.prazoEntrega || ''),
+                    campoResumo('Garantia de Contrato:', analise.garantiaContrato || ''),
+                    campoResumo('Validade da Proposta:', analise.validadeProposta || ''),
+                    campoResumo('Vigência Total Contrato:', analise.vigenciaTotalContrato || ''),
+                    campoResumo('Pagamento:', analise.pagamento || ''),
+                    ...(analise.contratacaoMaoObra ? [campoResumo('Contratação de Mão de Obra:', analise.contratacaoMaoObra)] : []),
+                    ...(analise.remotoOuPresencial ? [campoResumo('Remoto ou Presencial:', analise.remotoOuPresencial)] : []),
+                    ...(analise.dedicacaoExclusivaPerfis ? [campoResumo('Dedicação Exclusiva:', analise.dedicacaoExclusivaPerfis)] : []),
+                    campoResumo('Recurso:', analise.recurso || ''),
+                    campoResumo('Proposta Adequada:', analise.propostaAdequada || ''),
+                    campoResumo('Prazo p/ Assinatura do Contrato:', analise.prazoAssinaturaContrato || analise.assinaturaContrato || ''),
+                  ],
+                }),
+              ]
+            : []),
 
           // ===== ATENÇÕES (vermelho, antes de DOCUMENTAÇÃO) =====
-          ...secaoOpcional('ATENÇÃO — RISCOS E PONTOS CRÍTICOS', analise.atencoes, 'C0392B'),
+          ...secaoFiltrada('atencoes', analise, 'ATENÇÃO — RISCOS E PONTOS CRÍTICOS', analise.atencoes, 'C0392B'),
 
           // ===== SEÇÕES DETALHADAS — ordem padrão Abächerly =====
-          ...secao('DOCUMENTAÇÃO', analise.documentacao || ''),
-          ...secaoOpcional('AMOSTRA', analise.amostra),
-          ...secaoOpcional('VISTORIA', analise.vistoria),
-          ...secao('GARANTIA DE CONTRATO', analise.garantiaContratoDetalhe || analise.garantiaDeContrato || ''),
-          ...secaoOpcional('PROVA DE CONCEITO', analise.provaDeConceito),
-          ...secao('PROPOSTA', analise.proposta || ''),
-          ...secao('PROPOSTA REVISADA', analise.propostaRevisada || ''),
-          ...secao('JULGAMENTO DA PROPOSTA', analise.julgamentoProposta || ''),
-          ...secao('HABILITAÇÃO JURÍDICA', analise.habilitacaoJuridica || ''),
-          ...secao('REGULARIDADE FISCAL E TRABALHISTA', analise.regularidadeFiscal || ''),
-          ...secao('QUALIFICAÇÃO ECONÔMICA FINANCEIRA', analise.qualificacaoEconomica || ''),
-          ...secao('QUALIFICAÇÃO TÉCNICA', analise.qualificacaoTecnica || ''),
-          ...secao('DECLARAÇÕES', analise.declaracoes || ''),
-          ...secao('DECLARADO VENCEDOR / ASSINATURA DO CONTRATO', analise.declaradoVencedor || ''),
-          ...secao('DO FATURAMENTO / ENTREGA DO SERVIÇO', analise.faturamentoEntrega || ''),
-          ...secaoOpcional('PRAZOS', analise.prazos),
-          ...secaoOpcional('OBSERVAÇÕES', analise.observacoes),
+          ...secaoFiltrada('documentacao', analise, 'DOCUMENTAÇÃO', analise.documentacao),
+          ...secaoFiltrada('amostra', analise, 'AMOSTRA', analise.amostra),
+          ...secaoFiltrada('vistoria', analise, 'VISTORIA', analise.vistoria),
+          ...secaoFiltrada('garantia_contrato', analise, 'GARANTIA DE CONTRATO', analise.garantiaContratoDetalhe || analise.garantiaDeContrato),
+          ...secaoFiltrada('prova_conceito', analise, 'PROVA DE CONCEITO', analise.provaDeConceito),
+          ...secaoFiltrada('proposta', analise, 'PROPOSTA', analise.proposta),
+          ...secaoFiltrada('proposta_revisada', analise, 'PROPOSTA REVISADA', analise.propostaRevisada),
+          ...secaoFiltrada('julgamento_proposta', analise, 'JULGAMENTO DA PROPOSTA', analise.julgamentoProposta),
+          ...secaoFiltrada('habilitacao_juridica', analise, 'HABILITAÇÃO JURÍDICA', analise.habilitacaoJuridica),
+          ...secaoFiltrada('regularidade_fiscal', analise, 'REGULARIDADE FISCAL E TRABALHISTA', analise.regularidadeFiscal),
+          ...secaoFiltrada('qualificacao_economica', analise, 'QUALIFICAÇÃO ECONÔMICA FINANCEIRA', analise.qualificacaoEconomica),
+          ...secaoFiltrada('qualificacao_tecnica', analise, 'QUALIFICAÇÃO TÉCNICA', analise.qualificacaoTecnica),
+          ...secaoFiltrada('declaracoes', analise, 'DECLARAÇÕES', analise.declaracoes),
+          ...secaoFiltrada('declarado_vencedor', analise, 'DECLARADO VENCEDOR / ASSINATURA DO CONTRATO', analise.declaradoVencedor),
+          ...secaoFiltrada('faturamento_entrega', analise, 'DO FATURAMENTO / ENTREGA DO SERVIÇO', analise.faturamentoEntrega),
+          ...secaoFiltrada('prazos', analise, 'PRAZOS', analise.prazos),
+          ...secaoFiltrada('observacoes', analise, 'OBSERVAÇÕES', analise.observacoes),
 
           // ===== RODAPÉ =====
           new Paragraph({

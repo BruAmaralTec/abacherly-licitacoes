@@ -26,6 +26,13 @@ export interface DocumentacaoSecaoEstruturada {
   anexos?: string;
 }
 
+/** Marcações operacionais do analista por bloco da análise.
+ *  Word/PDF só inclui blocos com (conferido && enviar) marcados. */
+export interface FlagExport {
+  conferido?: boolean;
+  enviar?: boolean;
+}
+
 export interface AnaliseEdital {
   // === Campos legados usados pela UI atual /licitacoes/[id]/analise ===
   // Resumo (campos planos)
@@ -83,6 +90,20 @@ export interface AnaliseEdital {
 
   // Aba dedicada "Atenções" (texto livre — riscos do edital).
   atencoes?: string;
+
+  // Campos derivados de Licitacao mas editáveis pelo analista (sobrescrevem
+  // o valor da Licitacao quando preenchidos).
+  orgao?: string;
+  objeto?: string;
+  dataCertame?: string; // texto livre — analista pode reescrever
+  prazoEntrega?: string;
+  prazoAssinaturaContrato?: string; // novo no RESUMO da aba EDITAL
+  modalidade?: string;
+  valor?: string; // texto formatado (ex: "R$ 6.529.323,09")
+
+  // Marcações por bloco para filtrar a exportação Word/PDF.
+  // Key = id do bloco (ex: "resumo", "atencoes", "qualificacao_tecnica").
+  flagsExport?: Record<string, FlagExport>;
 }
 
 export interface Licitacao {

@@ -17,6 +17,7 @@ import Footer from '@/components/Footer';
 import Link from 'next/link';
 import Image from 'next/image';
 import { buscarLicitacao, atualizarLicitacao } from '@/lib/services/licitacoes';
+import { formatarAnaliseListas } from '@/lib/formatarListas';
 import { Licitacao, AnaliseEdital } from '@/lib/types';
 
 type TabId =
@@ -77,7 +78,9 @@ export default function AnalisePage() {
           return;
         }
         setLicitacao(dados);
-        setAnalise(dados.analise || {});
+        // Auto-formata listas (a) b) c), 1) 2), 1.1, etc) em parágrafos separados.
+        // Aplica só na carga; analista pode editar livremente depois.
+        setAnalise(formatarAnaliseListas(dados.analise || {}));
       } catch (error) {
         console.error('Erro ao carregar licitação:', error);
       } finally {
@@ -122,6 +125,24 @@ export default function AnalisePage() {
     setAnalise((prev) => ({ ...prev, [campo]: valor }));
     setSalvo(false);
   };
+
+  const updFlag = (blocoId: string, chave: 'conferido' | 'enviar', valor: boolean) => {
+    setAnalise((prev) => ({
+      ...prev,
+      flagsExport: {
+        ...(prev.flagsExport || {}),
+        [blocoId]: { ...(prev.flagsExport?.[blocoId] || {}), [chave]: valor },
+      },
+    }));
+    setSalvo(false);
+  };
+  const flagsDe = (blocoId: string) => analise.flagsExport?.[blocoId] || {};
+  const blocoProps = (id: string) => ({
+    flagId: id,
+    conferido: flagsDe(id).conferido,
+    enviar: flagsDe(id).enviar,
+    onFlagChange: (c: 'conferido' | 'enviar', v: boolean) => updFlag(id, c, v),
+  });
 
   if (loading || !user || carregando) {
     return (
@@ -215,8 +236,8 @@ export default function AnalisePage() {
           </div>
         </div>
 
-        {/* Tabs (não imprime) */}
-        <div className="print:hidden bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8">
+        {/* Tabs (não imprime) — sticky logo abaixo da toolbar */}
+        <div className="print:hidden sticky top-[60px] z-[9] bg-white border-b border-gray-200 px-4 sm:px-6 lg:px-8 shadow-sm">
           <div className="flex flex-wrap gap-1 overflow-x-auto">
             {TABS.map((t) => {
               const ativo = tabAtiva === t.id;
@@ -290,7 +311,7 @@ export default function AnalisePage() {
 
               {/* ============ ABA: ATENÇÕES ============ */}
               <SecaoAba ativa={tabAtiva === 'atencoes'} id="atencoes">
-                <Bloco titulo="ATENÇÃO — RISCOS E PONTOS CRÍTICOS" cor="vermelho">
+                <Bloco titulo="ATENÇÃO — RISCOS E PONTOS CRÍTICOS" cor="vermelho" {...blocoProps('atencoes')}>
                   <CampoLongo
                     valor={analise.atencoes || ''}
                     onChange={(v) => upd('atencoes', v)}
@@ -302,15 +323,25 @@ export default function AnalisePage() {
 
               {/* ============ ABA: EDITAL ============ */}
               <SecaoAba ativa={tabAtiva === 'edital'} id="edital">
-                <Bloco titulo="RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO">
-                  <Linha label="Data do Certame" valor={dataCertameStr} />
+                <Bloco titulo="RESUMO - CONDIÇÕES DE PARTICIPAÇÃO E FORNECIMENTO" {...blocoProps('resumo')}>
+                  <LinhaInput
+                    label="Data do Certame"
+                    valor={analise.dataCertame || dataCertameStr}
+                    onChange={(v) => upd('dataCertame', v)}
+                    readOnly={isCliente}
+                  />
                   <LinhaInput
                     label="Fuso Horário"
                     valor={analise.fusoHorario || ''}
                     onChange={(v) => upd('fusoHorario', v)}
                     readOnly={isCliente}
                   />
-                  <Linha label="Modalidade" valor={licitacao.modalidade} />
+                  <LinhaInput
+                    label="Modalidade"
+                    valor={analise.modalidade || licitacao.modalidade || ''}
+                    onChange={(v) => upd('modalidade', v)}
+                    readOnly={isCliente}
+                  />
                   <LinhaInput
                     label="Base Legal"
                     valor={analise.baseLegal || licitacao.baseLegal || ''}
@@ -323,7 +354,12 @@ export default function AnalisePage() {
                     onChange={(v) => upd('portal', v)}
                     readOnly={isCliente}
                   />
-                  <Linha label="Valor" valor={valorFmt} />
+                  <LinhaInput
+                    label="Valor"
+                    valor={analise.valor || valorFmt}
+                    onChange={(v) => upd('valor', v)}
+                    readOnly={isCliente}
+                  />
                   <LinhaInput
                     label="Intervalo de Lance"
                     valor={analise.valorIntervaloLance || ''}
@@ -378,14 +414,30 @@ export default function AnalisePage() {
                     onChange={(v) => upd('propostaAdequada', v)}
                     readOnly={isCliente}
                   />
+                  <LinhaInput
+                    label="Prazo p/ Assinatura do Contrato"
+                    valor={analise.prazoAssinaturaContrato || analise.assinaturaContrato || ''}
+                    onChange={(v) => upd('prazoAssinaturaContrato', v)}
+                    readOnly={isCliente}
+                  />
                 </Bloco>
               </SecaoAba>
 
               {/* ============ ABA: OBJETO ============ */}
               <SecaoAba ativa={tabAtiva === 'objeto'} id="objeto">
-                <Bloco titulo="OBJETO E EXECUÇÃO">
-                  <Linha label="Órgão" valor={licitacao.orgao} />
-                  <Linha label="Objeto" valor={licitacao.objeto} />
+                <Bloco titulo="OBJETO E EXECUÇÃO" {...blocoProps('objeto_execucao')}>
+                  <LinhaInput
+                    label="Órgão"
+                    valor={analise.orgao || licitacao.orgao || ''}
+                    onChange={(v) => upd('orgao', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Objeto"
+                    valor={analise.objeto || licitacao.objeto || ''}
+                    onChange={(v) => upd('objeto', v)}
+                    readOnly={isCliente}
+                  />
                   <LinhaInput
                     label="Vigência Total do Contrato"
                     valor={analise.vigenciaTotalContrato || ''}
@@ -398,7 +450,12 @@ export default function AnalisePage() {
                     onChange={(v) => upd('formalizacao', v)}
                     readOnly={isCliente}
                   />
-                  <Linha label="Prazo de Entrega" valor={licitacao.prazoEntrega} />
+                  <LinhaInput
+                    label="Prazo de Entrega"
+                    valor={analise.prazoEntrega || licitacao.prazoEntrega || ''}
+                    onChange={(v) => upd('prazoEntrega', v)}
+                    readOnly={isCliente}
+                  />
                   <LinhaInput
                     label="Pagamento"
                     valor={analise.pagamento || ''}
@@ -418,7 +475,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="GARANTIA DE CONTRATO">
+                <Bloco titulo="GARANTIA DE CONTRATO" {...blocoProps('garantia_contrato')}>
                   <CampoLongo
                     valor={analise.garantiaContratoDetalhe || analise.garantiaDeContrato || ''}
                     onChange={(v) => upd('garantiaContratoDetalhe', v)}
@@ -426,7 +483,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="DO FATURAMENTO / ENTREGA DO SERVIÇO">
+                <Bloco titulo="DO FATURAMENTO / ENTREGA DO SERVIÇO" {...blocoProps('faturamento_entrega')}>
                   <CampoLongo
                     valor={analise.faturamentoEntrega || ''}
                     onChange={(v) => upd('faturamentoEntrega', v)}
@@ -434,7 +491,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="PRAZOS">
+                <Bloco titulo="PRAZOS" {...blocoProps('prazos')}>
                   <CampoLongo
                     valor={analise.prazos || ''}
                     onChange={(v) => upd('prazos', v)}
@@ -446,7 +503,7 @@ export default function AnalisePage() {
 
               {/* ============ ABA: TÉCNICO ============ */}
               <SecaoAba ativa={tabAtiva === 'tecnico'} id="tecnico">
-                <Bloco titulo="QUALIFICAÇÃO TÉCNICA">
+                <Bloco titulo="QUALIFICAÇÃO TÉCNICA" {...blocoProps('qualificacao_tecnica')}>
                   <CampoLongo
                     valor={analise.qualificacaoTecnica || ''}
                     onChange={(v) => upd('qualificacaoTecnica', v)}
@@ -454,7 +511,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="DOCUMENTAÇÃO">
+                <Bloco titulo="DOCUMENTAÇÃO" {...blocoProps('documentacao')}>
                   <CampoLongo
                     valor={analise.documentacao || ''}
                     onChange={(v) => upd('documentacao', v)}
@@ -462,7 +519,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="PROVA DE CONCEITO">
+                <Bloco titulo="PROVA DE CONCEITO" {...blocoProps('prova_conceito')}>
                   <CampoLongo
                     valor={analise.provaDeConceito || ''}
                     onChange={(v) => upd('provaDeConceito', v)}
@@ -470,7 +527,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="AMOSTRA">
+                <Bloco titulo="AMOSTRA" {...blocoProps('amostra')}>
                   <CampoLongo
                     valor={analise.amostra || ''}
                     onChange={(v) => upd('amostra', v)}
@@ -478,7 +535,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="VISTORIA">
+                <Bloco titulo="VISTORIA" {...blocoProps('vistoria')}>
                   <CampoLongo
                     valor={analise.vistoria || ''}
                     onChange={(v) => upd('vistoria', v)}
@@ -486,7 +543,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="PROPOSTA">
+                <Bloco titulo="PROPOSTA" {...blocoProps('proposta')}>
                   <CampoLongo
                     valor={analise.proposta || ''}
                     onChange={(v) => upd('proposta', v)}
@@ -494,7 +551,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="PROPOSTA REVISADA">
+                <Bloco titulo="PROPOSTA REVISADA" {...blocoProps('proposta_revisada')}>
                   <CampoLongo
                     valor={analise.propostaRevisada || ''}
                     onChange={(v) => upd('propostaRevisada', v)}
@@ -502,7 +559,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="JULGAMENTO DA PROPOSTA">
+                <Bloco titulo="JULGAMENTO DA PROPOSTA" {...blocoProps('julgamento_proposta')}>
                   <CampoLongo
                     valor={analise.julgamentoProposta || ''}
                     onChange={(v) => upd('julgamentoProposta', v)}
@@ -514,7 +571,7 @@ export default function AnalisePage() {
 
               {/* ============ ABA: HABILITAÇÃO PARA CONCORRER ============ */}
               <SecaoAba ativa={tabAtiva === 'habilitacao'} id="habilitacao">
-                <Bloco titulo="ENQUADRAMENTO DA EMPRESA">
+                <Bloco titulo="ENQUADRAMENTO DA EMPRESA" {...blocoProps('enquadramento_empresa')}>
                   <CampoLongo
                     valor={analise.enquadramentoEmpresa || ''}
                     onChange={(v) => upd('enquadramentoEmpresa', v)}
@@ -522,7 +579,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="HABILITAÇÃO JURÍDICA">
+                <Bloco titulo="HABILITAÇÃO JURÍDICA" {...blocoProps('habilitacao_juridica')}>
                   <CampoLongo
                     valor={analise.habilitacaoJuridica || ''}
                     onChange={(v) => upd('habilitacaoJuridica', v)}
@@ -530,7 +587,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="DECLARAÇÕES">
+                <Bloco titulo="DECLARAÇÕES" {...blocoProps('declaracoes')}>
                   <CampoLongo
                     valor={analise.declaracoes || ''}
                     onChange={(v) => upd('declaracoes', v)}
@@ -538,7 +595,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="DECLARADO VENCEDOR / ASSINATURA DO CONTRATO">
+                <Bloco titulo="DECLARADO VENCEDOR / ASSINATURA DO CONTRATO" {...blocoProps('declarado_vencedor')}>
                   <CampoLongo
                     valor={analise.declaradoVencedor || ''}
                     onChange={(v) => upd('declaradoVencedor', v)}
@@ -550,7 +607,7 @@ export default function AnalisePage() {
 
               {/* ============ ABA: REGULARIZAÇÃO FISCAL E TRABALHISTA ============ */}
               <SecaoAba ativa={tabAtiva === 'fiscal'} id="fiscal">
-                <Bloco titulo="REGULARIDADE FISCAL E TRABALHISTA">
+                <Bloco titulo="REGULARIDADE FISCAL E TRABALHISTA" {...blocoProps('regularidade_fiscal')}>
                   <CampoLongo
                     valor={analise.regularidadeFiscal || ''}
                     onChange={(v) => upd('regularidadeFiscal', v)}
@@ -558,7 +615,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="CONTRATAÇÃO DE MÃO DE OBRA">
+                <Bloco titulo="CONTRATAÇÃO DE MÃO DE OBRA" {...blocoProps('contratacao_mao_obra')}>
                   <CampoLongo
                     valor={analise.contratacaoMaoObra || ''}
                     onChange={(v) => upd('contratacaoMaoObra', v)}
@@ -566,7 +623,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="REMOTO OU PRESENCIAL">
+                <Bloco titulo="REMOTO OU PRESENCIAL" {...blocoProps('remoto_presencial')}>
                   <CampoLongo
                     valor={analise.remotoOuPresencial || ''}
                     onChange={(v) => upd('remotoOuPresencial', v)}
@@ -574,7 +631,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="DEDICAÇÃO EXCLUSIVA DOS PERFIS">
+                <Bloco titulo="DEDICAÇÃO EXCLUSIVA DOS PERFIS" {...blocoProps('dedicacao_exclusiva')}>
                   <CampoLongo
                     valor={analise.dedicacaoExclusivaPerfis || ''}
                     onChange={(v) => upd('dedicacaoExclusivaPerfis', v)}
@@ -586,7 +643,7 @@ export default function AnalisePage() {
 
               {/* ============ ABA: ECONÔMICO ============ */}
               <SecaoAba ativa={tabAtiva === 'economico'} id="economico">
-                <Bloco titulo="QUALIFICAÇÃO ECONÔMICA FINANCEIRA">
+                <Bloco titulo="QUALIFICAÇÃO ECONÔMICA FINANCEIRA" {...blocoProps('qualificacao_economica')}>
                   <CampoLongo
                     valor={analise.qualificacaoEconomica || ''}
                     onChange={(v) => upd('qualificacaoEconomica', v)}
@@ -594,7 +651,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="OBSERVAÇÕES">
+                <Bloco titulo="OBSERVAÇÕES" {...blocoProps('observacoes')}>
                   <CampoLongo
                     valor={analise.observacoes || ''}
                     onChange={(v) => upd('observacoes', v)}
@@ -663,31 +720,50 @@ function SecaoAba({
 function Bloco({
   titulo,
   cor = 'azul',
+  flagId,
+  conferido,
+  enviar,
+  onFlagChange,
   children,
 }: {
   titulo: string;
   cor?: 'azul' | 'vermelho';
+  flagId?: string;
+  conferido?: boolean;
+  enviar?: boolean;
+  onFlagChange?: (chave: 'conferido' | 'enviar', valor: boolean) => void;
   children: React.ReactNode;
 }) {
   const borda = cor === 'vermelho' ? 'border-red-500' : 'border-[#d64b16]/30';
   const corTitulo = cor === 'vermelho' ? 'text-red-700' : 'text-[#2c4a70]';
   return (
     <div>
-      <h2 className={`text-base font-bold ${corTitulo} border-b ${borda} pb-2 mb-4`}>
-        {titulo}
-      </h2>
+      <div className={`flex flex-wrap items-center gap-3 border-b ${borda} pb-2 mb-4`}>
+        <h2 className={`text-base font-bold ${corTitulo} flex-1`}>{titulo}</h2>
+        {flagId && onFlagChange && (
+          <div className="flex items-center gap-4 print:hidden">
+            <label className="flex items-center gap-1.5 text-xs text-[#1a2b45]/70 cursor-pointer hover:text-[#1a2b45]">
+              <input
+                type="checkbox"
+                checked={!!conferido}
+                onChange={(e) => onFlagChange('conferido', e.target.checked)}
+                className="w-4 h-4 accent-green-600 cursor-pointer"
+              />
+              Conferido
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-[#1a2b45]/70 cursor-pointer hover:text-[#1a2b45]">
+              <input
+                type="checkbox"
+                checked={!!enviar}
+                onChange={(e) => onFlagChange('enviar', e.target.checked)}
+                className="w-4 h-4 accent-[#4674e8] cursor-pointer"
+              />
+              Enviar no doc cliente
+            </label>
+          </div>
+        )}
+      </div>
       <div className="space-y-3">{children}</div>
-    </div>
-  );
-}
-
-function Linha({ label, valor }: { label: string; valor?: string }) {
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-baseline gap-1">
-      <span className="font-bold text-[#2c4a70] text-sm min-w-[220px] flex-shrink-0">
-        {label}:
-      </span>
-      <span className="text-[#1a2b45] print:text-black">{valor || '—'}</span>
     </div>
   );
 }

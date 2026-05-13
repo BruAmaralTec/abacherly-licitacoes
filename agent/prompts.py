@@ -52,7 +52,7 @@ EXTRACT_SCHEMA = {
         },
         "orgao": {
             "type": "string",
-            "description": "Nome do órgão licitante"
+            "description": "Nome COMPLETO do órgão licitante. Buscar em TODOS os documentos enviados (capa do edital, TR, minuta de contrato, ETP, anexos). Padrão Abächerly: maiúsculas — ex: 'CONTROLADORIA-GERAL DO ESTADO - CGE' ou 'MINISTÉRIO DO TURISMO'. CAMPO OBRIGATÓRIO — nunca devolver vazio."
         },
         "modalidade": {
             "type": "string",
@@ -185,7 +185,7 @@ EXTRACT_SCHEMA = {
         },
         "prazos": {
             "type": "string",
-            "description": "Seção PRAZOS adicionais (pós-homologação, cadastro, etc.). DEIXAR VAZIO se não houver."
+            "description": "Seção PRAZOS — CONSOLIDE TODOS os prazos relevantes do edital (cronograma, marcos, etapas, prazos pós-homologação, cadastro, vigência, fases do projeto, recursos, garantia técnica). Mesmo que alguns já apareçam no RESUMO, repita aqui em um parágrafo por prazo, com a citação literal numerada do item (ex: '5.3.5 O prazo máximo será de 10 (dez) dias...'). Quase sempre o edital tem múltiplos prazos — preencher ao máximo. Só deixar VAZIO se realmente NÃO houver qualquer menção a prazo no edital."
         },
         "vistoria": {
             "type": "string",
@@ -305,6 +305,13 @@ própria seguida do conteúdo.
 
 4. **No campo atencoes** (aba Atenções), liste cada risco em parágrafo separado com a citação \
 literal numerada do item correspondente.
+
+5. **LISTAS NUNCA INLINE**: quando o edital traz uma lista de alíneas (a), b), c)) ou itens \
+numerados (1), 2), 3)) ou subitens (1.1, 1.2, 1.2.1), CADA alínea/item DEVE estar em SUA PRÓPRIA \
+LINHA, separada por "\\n\\n". NUNCA escreva "...documentos exigidos: a) certidão; b) atestado; \
+c) declaração" em corrido. ESCREVA:
+   "...documentos exigidos:\\n\\na) certidão...\\n\\nb) atestado...\\n\\nc) declaração..."
+   Vale também para romanos (I, II, III), bullets (•) e qualquer enumeração.
 
 ============ COMPLETUDE — NÃO ENTREGUE ANÁLISE PARCIAL ============
 A análise da Abächerly é vendida ao cliente. ENTREGAR ANÁLISE INCOMPLETA É INACEITÁVEL.
