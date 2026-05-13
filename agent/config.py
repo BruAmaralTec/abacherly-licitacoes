@@ -38,11 +38,11 @@ CORS_ORIGINS = [
 # Tamanho máximo por arquivo (50MB)
 MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", str(50 * 1024 * 1024)))
 
-# Tipos MIME aceitos
+# Tipos MIME aceitos pelo Vertex AI Gemini (multimodal).
+# Word (.doc/.docx) NÃO é suportado — o Gemini retorna 400 mimeType inválido.
+# Cliente precisa converter para PDF antes do upload.
 ACCEPTED_MIMES = {
     "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
     "image/png",
     "image/jpeg",

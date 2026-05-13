@@ -69,7 +69,20 @@ export default function AgenteAnalisePage() {
   function adicionarArquivos(novos: FileList | null) {
     if (!novos) return;
     const lista = Array.from(novos);
-    setArquivos((prev) => [...prev, ...lista]);
+    const wordTypes = [
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+    const word = lista.filter((f) => wordTypes.includes(f.type) || /\.docx?$/i.test(f.name));
+    const validos = lista.filter((f) => !wordTypes.includes(f.type) && !/\.docx?$/i.test(f.name));
+    if (word.length > 0) {
+      setErro(
+        `Word (.doc/.docx) não é suportado pelo Gemini. Converta para PDF antes: ${word
+          .map((w) => w.name)
+          .join(', ')}`
+      );
+    }
+    setArquivos((prev) => [...prev, ...validos]);
   }
 
   function removerArquivo(idx: number) {
@@ -165,7 +178,7 @@ export default function AgenteAnalisePage() {
               >
                 <Upload className="w-12 h-12 text-[#4674e8] mx-auto mb-3" />
                 <p className="font-bold text-[#2c4a70] mb-1">Arraste os arquivos aqui</p>
-                <p className="text-sm text-[#1a2b45]/60">ou clique para selecionar — qualquer arquivo do edital (PDF, DOCX, XLS, imagens, etc.)</p>
+                <p className="text-sm text-[#1a2b45]/60">ou clique para selecionar — PDF, PNG, JPG ou TXT (Word não é suportado pelo Gemini)</p>
                 <input
                   ref={inputRef}
                   type="file"

@@ -72,7 +72,18 @@ async def criar_analise_endpoint(
             raise HTTPException(413, f"Arquivo {upload.filename} excede {MAX_FILE_SIZE} bytes")
         mime = upload.content_type or "application/octet-stream"
         if mime not in ACCEPTED_MIMES:
-            logger.warning("mime não-listado %s para %s — aceitando mesmo assim", mime, upload.filename)
+            # Word não é aceito pelo Vertex AI Gemini — orienta o usuário a converter.
+            if mime in ("application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"):
+                raise HTTPException(
+                    415,
+                    f"Arquivo {upload.filename}: Word (.doc/.docx) não é suportado. "
+                    "Converta para PDF antes de enviar.",
+                )
+            raise HTTPException(
+                415,
+                f"Arquivo {upload.filename}: formato {mime} não é suportado. "
+                "Use PDF, imagem (PNG/JPG) ou texto (.txt).",
+            )
 
         # Sanitização básica do filename
         nome = (upload.filename or "arquivo").replace("/", "_").replace("\\", "_")
@@ -164,7 +175,20 @@ def _processar_analise(
         logger.info("[%s] concluída — licitação %s", analise_id, licitacao_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("[%s] erro: %s", analise_id, exc)
+        # Mensagens amigáveis para erros conhecidos do Vertex AI Gemini.
+        msg = str(exc)
+        if "Publisher Model" in msg and "not found" in msg:
+            msg = (
+                "Modelo Gemini selecionado não está disponível neste projeto GCP. "
+                "Modelos preview (3.x) requerem allowlist. Troque em /configuracoes "
+                "para gemini-2.5-flash ou outro modelo estável."
+            )
+        elif "mimeType" in msg and "not supported" in msg:
+            msg = (
+                "Algum arquivo enviado tem formato não suportado pelo Gemini. "
+                "Use somente PDF, PNG, JPG ou TXT."
+            )
         atualizar_analise(analise_id, {
             "status": "erro",
-            "erro": str(exc)[:500],
+            "erro": msg[:500],
         })
