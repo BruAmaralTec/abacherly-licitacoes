@@ -93,6 +93,7 @@ export interface AnaliseEdital {
 
   // Campos derivados de Licitacao mas editáveis pelo analista (sobrescrevem
   // o valor da Licitacao quando preenchidos).
+  numeroConlicitacao?: string; // override do Nº Conlicitação no cabeçalho
   orgao?: string;
   objeto?: string;
   dataCertame?: string; // texto livre — analista pode reescrever

@@ -72,6 +72,82 @@ export function formatarListas(texto: string | undefined | null): string {
 }
 
 /**
+ * Frase padrão inserida em campos vazios das abas Edital e Objeto.
+ * A exportação (Word/PDF) filtra qualquer texto que contenha esta frase.
+ */
+export const FRASE_VAZIO_EXPORT =
+  'Não possui informações localizadas será retirado da exportação';
+
+export function contemFraseVazio(v: string | undefined | null): boolean {
+  if (!v) return false;
+  return v.includes('Não possui informações localizadas');
+}
+
+/**
+ * Marca campos VAZIOS das abas Edital (RESUMO) e Objeto com a frase padrão
+ * informativa. A exportação filtra essas linhas via contemFraseVazio.
+ *
+ * O segundo argumento `licitacao` (opcional) é usado para fallback — só
+ * marcamos como vazio se NEM analise nem a licitação base têm o valor.
+ */
+export function marcarVaziosEditalObjeto<T extends object>(
+  analise: T,
+  licitacao?: { orgao?: string; objeto?: string; modalidade?: string; prazoEntrega?: string; baseLegal?: string; modoDisputa?: string }
+): T {
+  const out = { ...analise } as Record<string, unknown>;
+
+  // Campos do RESUMO (aba Edital) — texto livre vazio é marcado.
+  // dataCertame fica de fora: vem do Licitacao.dataCertame (Timestamp) via fallback no JSX.
+  const CAMPOS_EDITAL_RESUMO = [
+    'fusoHorario',
+    'validadeProposta',
+    'criterioJulgamento',
+    'modoDisputa',
+    'baseLegal',
+    'portal',
+    'valor',
+    'valorIntervaloLance',
+    'recurso',
+    'dataLimiteCredenciamento',
+    'dataLimiteCadastramento',
+    'dataLimiteEsclarecimentos',
+    'propostaAdequada',
+    'prazoAssinaturaContrato',
+  ];
+
+  // Campos da aba Objeto (após remoção do Órgão).
+  const CAMPOS_OBJETO = [
+    'vigenciaTotalContrato',
+    'formalizacao',
+    'pagamento',
+    'garantiaContrato',
+    'assinaturaContrato',
+    'garantiaContratoDetalhe',
+    'faturamentoEntrega',
+    'prazos',
+  ];
+
+  const fallbackLicitacao: Record<string, string | undefined> = {
+    modalidade: licitacao?.modalidade,
+    baseLegal: licitacao?.baseLegal,
+    modoDisputa: licitacao?.modoDisputa,
+    objeto: licitacao?.objeto,
+    prazoEntrega: licitacao?.prazoEntrega,
+  };
+
+  for (const k of [...CAMPOS_EDITAL_RESUMO, ...CAMPOS_OBJETO]) {
+    const v = out[k];
+    const vTrim = typeof v === 'string' ? v.trim() : '';
+    const fb = (fallbackLicitacao[k] || '').trim();
+    if (!vTrim && !fb) {
+      out[k] = FRASE_VAZIO_EXPORT;
+    }
+  }
+
+  return out as T;
+}
+
+/**
  * Aplica o formatador em todos os campos de texto longo de AnaliseEdital.
  * Usado uma vez ao carregar a análise — o resultado é gravado no state
  * e persistido se o analista clicar em Salvar.

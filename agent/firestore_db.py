@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from google.cloud import firestore
@@ -71,22 +71,38 @@ def criar_licitacao(
     db = get_db()
     agora = datetime.now(timezone.utc)
 
-    # Converter data_certame string -> Timestamp
+    # Converter data_certame string -> Timestamp.
+    # Edital vem em horário de Brasília (BRT = UTC-3). Combinamos com hora_certame
+    # quando houver; sem hora, usamos 12:00 BRT para evitar virar dia anterior no client.
+    BRT = timezone(timedelta(hours=-3))
     data_certame = agora
     raw_data = extracao.get("data_certame")
+    raw_hora = (extracao.get("hora_certame") or "").strip()
     if raw_data:
         try:
-            data_certame = datetime.fromisoformat(raw_data).replace(tzinfo=timezone.utc)
+            dia = datetime.fromisoformat(raw_data).date()
+            hora = 12
+            minuto = 0
+            if raw_hora:
+                try:
+                    partes = raw_hora.split(":")
+                    hora = int(partes[0])
+                    minuto = int(partes[1]) if len(partes) > 1 else 0
+                except (ValueError, IndexError):
+                    pass
+            data_certame = datetime(dia.year, dia.month, dia.day, hora, minuto, tzinfo=BRT).astimezone(timezone.utc)
         except (ValueError, TypeError):
             pass
 
     resumo = extracao.get("resumo") or {}
     doc_estruturada = extracao.get("documentacao") or {}
 
-    # Compõe a string da seção DOCUMENTAÇÃO (legado) a partir das subseções novas
+    # ATENÇÕES agora vem do top-level (era subseção de documentacao no schema antigo —
+    # fallback mantido para análises já produzidas).
+    atencoes_texto = extracao.get("atencoes") or doc_estruturada.get("atencao") or ""
+
+    # Compõe a string da seção DOCUMENTAÇÃO (sem ATENÇÃO — vai pra aba própria)
     partes_doc = []
-    if doc_estruturada.get("atencao"):
-        partes_doc.append(f"ATENÇÃO\n{doc_estruturada.get('atencao')}")
     if doc_estruturada.get("questionamentos"):
         partes_doc.append(f"QUESTIONAMENTOS\n{doc_estruturada.get('questionamentos')}")
     if doc_estruturada.get("credenciamento"):
@@ -138,6 +154,7 @@ def criar_licitacao(
         "provaConceitoFlag": resumo.get("provaConceitoFlag", ""),
         "amostra": resumo.get("amostra", ""),
         "documentacaoEstruturada": doc_estruturada,
+        "atencoes": atencoes_texto,
         "provaDeConceito": extracao.get("prova_de_conceito", ""),
         "garantiaDeContrato": extracao.get("garantia_de_contrato", ""),
         "prazos": extracao.get("prazos", ""),

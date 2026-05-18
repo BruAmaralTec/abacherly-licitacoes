@@ -11,15 +11,19 @@ import {
   TableCell,
   WidthType,
   ShadingType,
+  ImageRun,
 } from 'docx';
 import { saveAs } from 'file-saver';
 import { Licitacao, AnaliseEdital } from '@/lib/types';
+import { contemFraseVazio } from '@/lib/formatarListas';
 
 const COR_PRIMARIA = '2c4a70';
 const COR_ACCENT = 'd64b16';
 const COR_BRANCO = 'FFFFFF';
 
 function campoResumo(label: string, valor: string): TableRow {
+  // Linhas com a frase padrão "Não possui informações localizadas..." viram traço.
+  const valorExibido = contemFraseVazio(valor) ? '—' : (valor || '—');
   return new TableRow({
     children: [
       new TableCell({
@@ -36,7 +40,7 @@ function campoResumo(label: string, valor: string): TableRow {
         children: [
           new Paragraph({
             children: [
-              new TextRun({ text: valor || '—', size: 24, font: "Calibri" }),
+              new TextRun({ text: valorExibido, size: 24, font: "Calibri" }),
             ],
           }),
         ],
@@ -45,13 +49,31 @@ function campoResumo(label: string, valor: string): TableRow {
   });
 }
 
-function secao(titulo: string, conteudo: string, corTitulo: string = COR_PRIMARIA): Paragraph[] {
+/** Carrega bytes de uma imagem do /public — usado para embutir a logo no Word. */
+async function carregarImagemBytes(url: string): Promise<Uint8Array | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    return new Uint8Array(buf);
+  } catch {
+    return null;
+  }
+}
+
+function secao(
+  titulo: string,
+  conteudo: string,
+  corTitulo: string = COR_PRIMARIA,
+  quebraPagina: boolean = false
+): Paragraph[] {
   const paragraphs: Paragraph[] = [
     new Paragraph({
       children: [
         new TextRun({ text: titulo, bold: true, size: 28, color: corTitulo, font: 'Calibri' }),
       ],
       spacing: { before: 300, after: 100 },
+      pageBreakBefore: quebraPagina,
       border: {
         bottom: { style: BorderStyle.SINGLE, size: 1, color: COR_ACCENT },
       },
@@ -82,6 +104,7 @@ function secao(titulo: string, conteudo: string, corTitulo: string = COR_PRIMARI
 /** Seção opcional — só renderiza se houver conteúdo (evita seções vazias no Word). */
 function secaoOpcional(titulo: string, conteudo: string | undefined, corTitulo?: string): Paragraph[] {
   if (!conteudo?.trim()) return [];
+  if (contemFraseVazio(conteudo)) return [];
   return secao(titulo, conteudo, corTitulo);
 }
 
@@ -100,11 +123,13 @@ function secaoFiltrada(
   analise: AnaliseEdital,
   titulo: string,
   conteudo: string | undefined,
-  corTitulo?: string
+  corTitulo?: string,
+  quebraPagina: boolean = false
 ): Paragraph[] {
   if (!podeEnviar(analise, blocoId)) return [];
   if (!conteudo?.trim()) return [];
-  return secao(titulo, conteudo, corTitulo);
+  if (contemFraseVazio(conteudo)) return [];
+  return secao(titulo, conteudo, corTitulo, quebraPagina);
 }
 
 export async function exportarAnaliseWord(licitacao: Licitacao, analise: AnaliseEdital) {
@@ -116,6 +141,31 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
   const valorStr = licitacao.valorEstimado
     ? licitacao.valorEstimado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     : '';
+
+  const numeroConlicitacao =
+    analise.numeroConlicitacao ||
+    licitacao.codigoConlicitacao ||
+    licitacao.numeroControlePNCP ||
+    licitacao.codigoPNCP ||
+    '—';
+
+  // Logo do cabeçalho — carrega da pasta /public para embutir no Word.
+  const logoBytes = await carregarImagemBytes('/images/cabecalho.png');
+  const cabecalhoLogo: Paragraph[] = logoBytes
+    ? [
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: logoBytes,
+              transformation: { width: 180, height: 90 },
+              type: 'png',
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+      ]
+    : [];
 
   const doc = new Document({
     styles: {
@@ -134,6 +184,7 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
         },
         children: [
           // ===== CABEÇALHO =====
+          ...cabecalhoLogo,
           new Paragraph({
             children: [
               new TextRun({
@@ -151,7 +202,7 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
             children: [
               new TextRun({ text: 'Nº Conlicitação ', size: 24, color: '666666', font: 'Calibri' }),
               new TextRun({
-                text: licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—',
+                text: numeroConlicitacao,
                 bold: true,
                 size: 24,
                 font: 'Calibri',
@@ -254,19 +305,19 @@ export async function exportarAnaliseWord(licitacao: Licitacao, analise: Analise
           ...secaoFiltrada('documentacao', analise, 'DOCUMENTAÇÃO', analise.documentacao),
           ...secaoFiltrada('amostra', analise, 'AMOSTRA', analise.amostra),
           ...secaoFiltrada('vistoria', analise, 'VISTORIA', analise.vistoria),
-          ...secaoFiltrada('garantia_contrato', analise, 'GARANTIA DE CONTRATO', analise.garantiaContratoDetalhe || analise.garantiaDeContrato),
+          ...secaoFiltrada('garantia_contrato', analise, 'GARANTIA DE CONTRATO', analise.garantiaContratoDetalhe || analise.garantiaDeContrato, undefined, true),
           ...secaoFiltrada('prova_conceito', analise, 'PROVA DE CONCEITO', analise.provaDeConceito),
           ...secaoFiltrada('proposta', analise, 'PROPOSTA', analise.proposta),
           ...secaoFiltrada('proposta_revisada', analise, 'PROPOSTA REVISADA', analise.propostaRevisada),
           ...secaoFiltrada('julgamento_proposta', analise, 'JULGAMENTO DA PROPOSTA', analise.julgamentoProposta),
-          ...secaoFiltrada('habilitacao_juridica', analise, 'HABILITAÇÃO JURÍDICA', analise.habilitacaoJuridica),
+          ...secaoFiltrada('habilitacao_juridica', analise, 'HABILITAÇÃO JURÍDICA', analise.habilitacaoJuridica, undefined, true),
           ...secaoFiltrada('regularidade_fiscal', analise, 'REGULARIDADE FISCAL E TRABALHISTA', analise.regularidadeFiscal),
           ...secaoFiltrada('qualificacao_economica', analise, 'QUALIFICAÇÃO ECONÔMICA FINANCEIRA', analise.qualificacaoEconomica),
           ...secaoFiltrada('qualificacao_tecnica', analise, 'QUALIFICAÇÃO TÉCNICA', analise.qualificacaoTecnica),
           ...secaoFiltrada('declaracoes', analise, 'DECLARAÇÕES', analise.declaracoes),
           ...secaoFiltrada('declarado_vencedor', analise, 'DECLARADO VENCEDOR / ASSINATURA DO CONTRATO', analise.declaradoVencedor),
           ...secaoFiltrada('faturamento_entrega', analise, 'DO FATURAMENTO / ENTREGA DO SERVIÇO', analise.faturamentoEntrega),
-          ...secaoFiltrada('prazos', analise, 'PRAZOS', analise.prazos),
+          ...secaoFiltrada('prazos', analise, 'PRAZOS', analise.prazos, undefined, true),
           ...secaoFiltrada('observacoes', analise, 'OBSERVAÇÕES', analise.observacoes),
 
           // ===== RODAPÉ =====

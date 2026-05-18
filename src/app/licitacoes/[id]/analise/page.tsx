@@ -19,6 +19,7 @@ import Image from 'next/image';
 import { buscarLicitacao, atualizarLicitacao } from '@/lib/services/licitacoes';
 import { formatarAnaliseListas } from '@/lib/formatarListas';
 import { Licitacao, AnaliseEdital } from '@/lib/types';
+import { marcarVaziosEditalObjeto } from '@/lib/formatarListas';
 
 type TabId =
   | 'atencoes'
@@ -79,8 +80,10 @@ export default function AnalisePage() {
         }
         setLicitacao(dados);
         // Auto-formata listas (a) b) c), 1) 2), 1.1, etc) em parágrafos separados.
+        // Em seguida, marca campos vazios de Edital/Objeto com a frase padrão
+        // ("Não possui informações localizadas ..." — filtrada na exportação).
         // Aplica só na carga; analista pode editar livremente depois.
-        setAnalise(formatarAnaliseListas(dados.analise || {}));
+        setAnalise(marcarVaziosEditalObjeto(formatarAnaliseListas(dados.analise || {}), dados));
       } catch (error) {
         console.error('Erro ao carregar licitação:', error);
       } finally {
@@ -287,11 +290,20 @@ export default function AnalisePage() {
                   <h1 className="text-xl lg:text-2xl font-bold text-[#2c4a70] tracking-wide">
                     ANÁLISE DO EDITAL
                   </h1>
-                  <p className="text-sm text-[#1a2b45]/80 mt-1">
-                    Nº Conlicitação{' '}
-                    <span className="font-bold">
-                      {licitacao.numeroControlePNCP || licitacao.codigoPNCP || '—'}
-                    </span>
+                  <p className="text-sm text-[#1a2b45]/80 mt-1 flex items-baseline justify-end gap-1">
+                    <span>Nº Conlicitação</span>
+                    <CampoInline
+                      valor={
+                        analise.numeroConlicitacao ||
+                        licitacao.codigoConlicitacao ||
+                        licitacao.numeroControlePNCP ||
+                        licitacao.codigoPNCP ||
+                        ''
+                      }
+                      onChange={(v) => upd('numeroConlicitacao', v)}
+                      placeholder="—"
+                      readOnly={isCliente}
+                    />
                   </p>
                 </div>
               </div>
@@ -328,6 +340,12 @@ export default function AnalisePage() {
                     label="Data do Certame"
                     valor={analise.dataCertame || dataCertameStr}
                     onChange={(v) => upd('dataCertame', v)}
+                    readOnly={isCliente}
+                  />
+                  <LinhaInput
+                    label="Validade da Proposta"
+                    valor={analise.validadeProposta || ''}
+                    onChange={(v) => upd('validadeProposta', v)}
                     readOnly={isCliente}
                   />
                   <LinhaInput
@@ -385,12 +403,6 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                   <LinhaInput
-                    label="Validade da Proposta"
-                    valor={analise.validadeProposta || ''}
-                    onChange={(v) => upd('validadeProposta', v)}
-                    readOnly={isCliente}
-                  />
-                  <LinhaInput
                     label="Recurso"
                     valor={analise.recurso || ''}
                     onChange={(v) => upd('recurso', v)}
@@ -432,12 +444,6 @@ export default function AnalisePage() {
               {/* ============ ABA: OBJETO ============ */}
               <SecaoAba ativa={tabAtiva === 'objeto'} id="objeto">
                 <Bloco titulo="OBJETO E EXECUÇÃO" {...blocoProps('objeto_execucao')}>
-                  <LinhaInput
-                    label="Órgão"
-                    valor={analise.orgao || licitacao.orgao || ''}
-                    onChange={(v) => upd('orgao', v)}
-                    readOnly={isCliente}
-                  />
                   <LinhaInput
                     label="Objeto"
                     valor={analise.objeto || licitacao.objeto || ''}
@@ -481,7 +487,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="GARANTIA DE CONTRATO" {...blocoProps('garantia_contrato')}>
+                <Bloco titulo="GARANTIA DE CONTRATO" quebraPagina {...blocoProps('garantia_contrato')}>
                   <CampoLongo
                     valor={analise.garantiaContratoDetalhe || analise.garantiaDeContrato || ''}
                     onChange={(v) => upd('garantiaContratoDetalhe', v)}
@@ -497,7 +503,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="PRAZOS" {...blocoProps('prazos')}>
+                <Bloco titulo="PRAZOS" quebraPagina {...blocoProps('prazos')}>
                   <CampoLongo
                     valor={analise.prazos || ''}
                     onChange={(v) => upd('prazos', v)}
@@ -585,7 +591,7 @@ export default function AnalisePage() {
                     readOnly={isCliente}
                   />
                 </Bloco>
-                <Bloco titulo="HABILITAÇÃO JURÍDICA" {...blocoProps('habilitacao_juridica')}>
+                <Bloco titulo="HABILITAÇÃO JURÍDICA" quebraPagina {...blocoProps('habilitacao_juridica')}>
                   <CampoLongo
                     valor={analise.habilitacaoJuridica || ''}
                     onChange={(v) => upd('habilitacaoJuridica', v)}
@@ -736,6 +742,7 @@ function Bloco({
   conferido,
   enviar,
   onFlagChange,
+  quebraPagina,
   children,
 }: {
   titulo: string;
@@ -744,14 +751,19 @@ function Bloco({
   conferido?: boolean;
   enviar?: boolean;
   onFlagChange?: (chave: 'conferido' | 'enviar', valor: boolean) => void;
+  quebraPagina?: boolean;
   children: React.ReactNode;
 }) {
   const borda = cor === 'vermelho' ? 'border-red-500' : 'border-[#d64b16]/30';
   const corTitulo = cor === 'vermelho' ? 'text-red-700' : 'text-[#2c4a70]';
   // Bloco com flagId mas SEM (conferido && enviar): esconde no print/PDF.
   const naoExporta = !!flagId && !(conferido && enviar);
+  const classes = [
+    naoExporta ? 'bloco-nao-exportar' : '',
+    quebraPagina ? 'print:break-before-page' : '',
+  ].filter(Boolean).join(' ');
   return (
-    <div className={naoExporta ? 'bloco-nao-exportar' : ''}>
+    <div className={classes}>
       <div className={`flex flex-wrap items-center gap-3 border-b ${borda} pb-2 mb-4`}>
         <h2 className={`text-base font-bold ${corTitulo} flex-1`}>{titulo}</h2>
         {flagId && onFlagChange && (
@@ -820,6 +832,42 @@ function LinhaInput({
         style={{ wordBreak: 'break-word', minHeight: '1.5em' }}
       />
     </div>
+  );
+}
+
+/**
+ * Campo curto inline (uma linha, sem label) — usado no cabeçalho para
+ * o Nº Conlicitação que precisa ficar editável e em negrito.
+ */
+function CampoInline({
+  valor,
+  onChange,
+  placeholder,
+  readOnly,
+}: {
+  valor: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  readOnly?: boolean;
+}) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.textContent !== valor) {
+      ref.current.textContent = valor;
+    }
+  }, [valor]);
+  return (
+    <span
+      ref={ref}
+      contentEditable={!readOnly}
+      suppressContentEditableWarning
+      data-placeholder={placeholder}
+      onBlur={(e) => onChange(e.currentTarget.textContent || '')}
+      className={`font-bold border-b border-dashed border-gray-300 focus:border-[#4674e8] focus:outline-none px-1 print:border-none ${
+        readOnly ? 'cursor-default' : 'cursor-text'
+      }`}
+      style={{ minWidth: '4ch' }}
+    />
   );
 }
 

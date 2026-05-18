@@ -110,15 +110,17 @@ EXTRACT_SCHEMA = {
             }
         },
 
+        # ===== ATENÇÕES (top-level) =====
+        "atencoes": {
+            "type": "string",
+            "description": "Pontos de ATENÇÃO/RISCO/PONTOS CRÍTICOS do edital. **DESTINO ÚNICO** dos riscos — NÃO replicar em qualificacao_tecnica nem em documentacao. Cite LITERALMENTE itens do edital com numeração (use OBRIGATORIAMENTE em MAIÚSCULAS quando o edital usar maiúsculas). Liste: presencial vs remoto, subcontratação vedada, prazos curtos, prova de conceito, amostra, garantia, banco específico para pagamento, migração de sistemas, integrações específicas, multas pesadas, exigências atípicas, etc. Cada risco em parágrafo próprio com a citação literal numerada + fonte (Arquivo.pdf, pg. X)."
+        },
+
         # ===== Seções FIXAS =====
         "documentacao": {
             "type": "object",
-            "description": "Seção DOCUMENTAÇÃO com subseções",
+            "description": "Seção DOCUMENTAÇÃO com subseções. NÃO inclui riscos/atenções (vão para o campo top-level 'atencoes').",
             "properties": {
-                "atencao": {
-                    "type": "string",
-                    "description": "Pontos de ATENÇÃO/RISCO. Cite literalmente itens do edital com numeração. Use OBRIGATORIAMENTE em MAIÚSCULAS. Liste presencial vs remoto, subcontratação, prazos curtos, requisitos especiais, etc."
-                },
                 "questionamentos": {
                     "type": "string",
                     "description": "Como fazer questionamentos (URL, procedimento). Vazio se não houver instrução específica."
@@ -136,7 +138,7 @@ EXTRACT_SCHEMA = {
 
         "proposta": {
             "type": "string",
-            "description": "Seção PROPOSTA. Como enviar, conteúdo exigido, prazo de validade, planilha de custos. Citar literalmente itens do edital com numeração. Inclui PROPOSTA ADEQUADA quando aparece como subseção."
+            "description": "Seção PROPOSTA. **TRAGA TODOS OS SUBITENS DA SEÇÃO PROPOSTA DO EDITAL** — não pule itens administrativos (ex: 5.2, 5.3, 5.4, 6.9 etc). Como enviar, conteúdo exigido, prazo de validade, planilha de custos, exigências de formulário, regras de envio anexo. Citar literalmente CADA subitem do edital com numeração — se a seção PROPOSTA do edital vai do item 5.1 ao 5.18, traga TODOS os 18. Inclui PROPOSTA ADEQUADA quando aparece como subseção."
         },
 
         "habilitacao_juridica": {
@@ -156,7 +158,7 @@ EXTRACT_SCHEMA = {
 
         "qualificacao_tecnica": {
             "type": "string",
-            "description": "Seção QUALIFICAÇÃO TÉCNICA. Atestados de capacidade técnica, requisitos específicos do objeto, vistoria (se for parte da QT). Citar itens literais."
+            "description": "Seção QUALIFICAÇÃO TÉCNICA. **APENAS** atestados de capacidade técnica, requisitos específicos do objeto, perfis profissionais, certificações exigidas. **NÃO COLOCAR** pontos de atenção/risco aqui — riscos vão APENAS para o campo 'atencoes'. Citar itens literais."
         },
 
         "declaracoes": {
@@ -171,7 +173,7 @@ EXTRACT_SCHEMA = {
 
         "faturamento_entrega": {
             "type": "string",
-            "description": "Seção DO FATURAMENTO / ENTREGA DO SERVIÇO. Prazo de pagamento, banco preferencial, dados que devem constar na NF, comprovações de regularidade. Citar itens literais."
+            "description": "Seção DO FATURAMENTO / ENTREGA DO SERVIÇO. Prazo de pagamento, banco preferencial, dados que devem constar na NF, comprovações de regularidade, **DESIGNAÇÃO DE PREPOSTO** (obrigatória — citar item literal sobre preposto/representante da contratada, prazo para indicação, formalização, responsabilidades). Citar itens literais."
         },
 
         # ===== Seções OPCIONAIS (vazias quando não constam no edital) =====
@@ -202,7 +204,7 @@ EXTRACT_SCHEMA = {
     },
     "required": [
         "numero", "objeto", "objeto_resumido", "orgao", "modalidade",
-        "data_certame", "resumo", "documentacao", "proposta",
+        "data_certame", "resumo", "atencoes", "documentacao", "proposta",
         "habilitacao_juridica", "regularidade_fiscal_trabalhista",
         "qualificacao_economica_financeira", "qualificacao_tecnica",
         "declaracoes", "declarado_vencedor_assinatura", "faturamento_entrega"
@@ -260,8 +262,9 @@ brasileiro DD/MM/AAAA HH:MM em campos textuais (dataLimiteCadastramento).
 5. **Valores**: somente número em valor_estimado (ex: 318374.18). Em campo textual, formato \
 brasileiro "R$ 318.374,18".
 
-6. **Apontamentos de risco**: na seção DOCUMENTAÇÃO > atencao, identifique e CITE LITERALMENTE \
-itens que indicam:
+6. **Apontamentos de risco**: vão EXCLUSIVAMENTE no campo top-level **'atencoes'** (aba "Atenções" \
+vermelha). **NUNCA replicar riscos em qualificacao_tecnica, documentacao, habilitacao_juridica nem \
+em qualquer outra seção**. Identifique e CITE LITERALMENTE itens que indicam:
    - Trabalho presencial obrigatório (item, endereço, dias)
    - Subcontratação vedada ou restrita
    - Prazos curtos atípicos
@@ -269,17 +272,21 @@ itens que indicam:
    - Garantia de contrato e percentual
    - Banco específico para pagamento (ex: Santander, BB)
    - Migração de sistema, integrações específicas
-   Use frases como "Atenção ao item X.Y..." quando o trecho for muito longo.
+   - Multas/penalidades atípicas
+   - Exigências de preposto/representante específicas
+   Use frases como "Atenção ao item X.Y..." quando o trecho for muito longo. **A seção \
+qualificacao_tecnica é APENAS para atestados/perfis/certificações — riscos vão para 'atencoes'.**
 
 7. **Anexos**: liste os anexos do edital (ANEXO I — TERMO DE REFERÊNCIA, ANEXO II — PROPOSTA \
 COMERCIAL, ANEXO III — PLANILHA DE PREÇOS, ANEXO IV — MINUTA DE CONTRATO, etc.). Marque com \
 asterisco ou destaque os mais relevantes (proposta, planilha de custos, contrato).
 
 ============ SEÇÕES OBRIGATÓRIAS vs OPCIONAIS ============
-SEMPRE PREENCHER (10 seções fixas):
+SEMPRE PREENCHER (11 seções fixas):
 - resumo (todos os subcampos)
-- documentacao (com atencao, questionamentos, credenciamento, anexos)
-- proposta
+- atencoes (campo top-level — DESTINO ÚNICO de riscos/pontos críticos)
+- documentacao (com questionamentos, credenciamento, anexos — SEM riscos)
+- proposta (TRAGA TODOS os subitens — 5.2, 5.3, 5.4, 6.9 etc.)
 - habilitacao_juridica
 - regularidade_fiscal_trabalhista
 - qualificacao_economica_financeira
